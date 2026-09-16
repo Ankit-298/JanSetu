@@ -1,13 +1,12 @@
 /**
- * others/services/geminiService.js
- * JanSetu AI Matching & Analysis Service using Google Gemini API
+ * JanSetu AI Matching & Analysis Service using Groq API
  * 
  * Features:
- * - Server-side only: never exposes GEMINI_API_KEY to frontend.
+ * - Server-side only: never exposes GROQ_API_KEY to frontend.
  * - Strict schema validation: returns structured JSON for Top 5 ranked recommendations.
  * - Explainable multi-factor scoring (Capabilities, Historical Performance, Similar Projects, CSR/Funding, Deployment, Proximity).
  * - Real database integration: never fabricates fake statistics; marks missing data clearly.
- * - Intelligent Fallback: if GEMINI_API_KEY is not configured or network/timeout occurs, calculates data-driven scores using deterministic mathematical models.
+ * - Groq is required for an AI result; provider failures are returned to the caller.
  * - In-memory cache for fast reuse with explicit refresh support.
  */
 
@@ -17,35 +16,52 @@ const https = require('https');
 const aiCache = new Map();
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
+function normalizeCapabilities(value) {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  if (typeof value === 'string') return value.split(',').map(item => item.trim()).filter(Boolean);
+  if (value && typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([, enabled]) => enabled === true || typeof enabled === 'string')
+      .map(([name, enabled]) => enabled === true ? name : `${name}: ${enabled}`);
+  }
+  return [];
+}
+
+function capabilityKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[\/&_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function capabilitiesMatch(required, available) {
+  const requiredKey = capabilityKey(required);
+  const availableKey = capabilityKey(available);
+  return requiredKey === availableKey || requiredKey.includes(availableKey) || availableKey.includes(requiredKey);
+}
+
 /**
- * Helper: Make HTTPS POST to Google Gemini API
+ * Helper: Make HTTPS POST to Groq's OpenAI-compatible API
  */
-async function callGemini(promptText, apiKey) {
+async function callGroq(promptText, apiKey) {
   return new Promise((resolve, reject) => {
     const postData = JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: promptText }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 3000,
-        responseMimeType: 'application/json'
-      }
+      model: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
+      messages: [{ role: 'user', content: promptText }],
+      temperature: 0.2,
+      max_tokens: 800,
+      response_format: { type: 'json_object' }
     });
 
     const options = {
-      hostname: 'generativelanguage.googleapis.com',
+      hostname: 'api.groq.com',
       port: 443,
-      path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      path: '/openai/v1/chat/completions',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
         'Content-Length': Buffer.byteLength(postData)
       },
       timeout: 10000 // 10s timeout
@@ -58,17 +74,17 @@ async function callGemini(promptText, apiKey) {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           try {
             const parsed = JSON.parse(body);
-            const candidateText = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+            const candidateText = parsed.choices?.[0]?.message?.content;
             if (!candidateText) {
-              return reject(new Error('Empty response candidate from Gemini'));
+              return reject(new Error('Empty response from Groq'));
             }
             const jsonResult = JSON.parse(candidateText);
             resolve(jsonResult);
           } catch (err) {
-            reject(new Error('Failed to parse Gemini response as JSON: ' + err.message));
+            reject(new Error('Failed to parse Groq response as JSON: ' + err.message));
           }
         } else {
-          reject(new Error(`Gemini API returned HTTP ${res.statusCode}: ${body.slice(0, 200)}`));
+          reject(new Error(`Groq API returned HTTP ${res.statusCode}: ${body.slice(0, 200)}`));
         }
       });
     });
@@ -76,7 +92,7 @@ async function callGemini(promptText, apiKey) {
     req.on('error', (err) => reject(err));
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Gemini API call timed out'));
+      reject(new Error('Groq API call timed out'));
     });
 
     req.write(postData);
@@ -90,16 +106,18 @@ async function callGemini(promptText, apiKey) {
  */
 function computeIndustryMatches({ proposal, problem, partners }) {
   const requestedFunding = proposal.fundingRequested || 50000;
-  const requestedSupports = Array.isArray(proposal.industrySupportRequired) ? proposal.industrySupportRequired : ['Funding', 'Mentorship'];
+  const requestedSupports = normalizeCapabilities(proposal.industrySupportRequired).length > 0
+    ? normalizeCapabilities(proposal.industrySupportRequired)
+    : ['Funding', 'Mentorship'];
   const problemCategory = proposal.problemCategory || problem?.category || 'Civic Infrastructure';
   const problemDistrict = problem?.district || problem?.location?.district || 'Ranchi';
   const problemTitle = proposal.problemTitle || problem?.title || 'Civic Infrastructure Renovation';
 
   const scoredPartners = partners.map(partner => {
-    const pCaps = Array.isArray(partner.capabilities) ? partner.capabilities : [];
+    const pCaps = normalizeCapabilities(partner.capabilities);
     
     // 1. Solution Capability Match (Weight: 30%)
-    const matchedCaps = pCaps.filter(c => requestedSupports.some(r => r.toLowerCase() === c.toLowerCase()));
+    const matchedCaps = pCaps.filter(capability => requestedSupports.some(required => capabilitiesMatch(required, capability)));
     const capOverlapRatio = requestedSupports.length > 0 ? (matchedCaps.length / requestedSupports.length) : 0.8;
     const solutionMatchScore = Math.min(30, Math.round(capOverlapRatio * 30));
 
@@ -108,7 +126,7 @@ function computeIndustryMatches({ proposal, problem, partners }) {
     const historicalScore = Math.min(25, Math.round(15 + Math.min(pastCollabs, 10)));
 
     // 3. Similar Projects (Weight: 20%)
-    const isSectorMatch = partner.sector === 'Multiple' || partner.sector === problemCategory;
+    const isSectorMatch = partner.sector === 'Multiple' || capabilityKey(partner.sector) === capabilityKey(problemCategory);
     const similarScore = isSectorMatch ? 18 : 14;
 
     // 4. Funding/CSR Capacity (Weight: 10%)
@@ -117,7 +135,7 @@ function computeIndustryMatches({ proposal, problem, partners }) {
     const fundingScore = Math.min(10, Math.round(fundingRatio * 10));
 
     // 5. Deployment Capability (Weight: 10%)
-    const hasFieldCapability = pCaps.includes('Infrastructure') || pCaps.includes('Testing Facility') || pCaps.includes('Raw Materials');
+    const hasFieldCapability = pCaps.some(capability => ['Infrastructure', 'Testing Facility', 'Raw Materials'].some(required => capabilitiesMatch(required, capability)));
     const deploymentScore = hasFieldCapability ? 9 : 7;
 
     // 6. Location Suitability (Weight: 5%)
@@ -269,7 +287,7 @@ async function matchIndustryForProposal({ proposal, problem, partners, refresh =
     problemLocation: problem?.district ? `${problem.district}, Jharkhand` : 'Ranchi, Jharkhand',
     verificationStatus: 'Verified',
     analyzedAt: new Date().toISOString(),
-    aiModel: 'Gemini 1.5 Flash (Civic Intelligence Model)',
+    aiModel: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
     confidence: baselineTop5[0]?.confidence || 0.94,
     factorsUsed: 6,
     weights: {
@@ -283,10 +301,14 @@ async function matchIndustryForProposal({ proposal, problem, partners, refresh =
     recommendations: baselineTop5
   };
 
-  // 2. If GEMINI_API_KEY is configured, enhance explanations via Gemini
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (apiKey) {
-    try {
+  // The database ranking remains available when Groq quota is temporarily unavailable.
+  const apiKey = (process.env.GROQ_API_KEY || '').trim();
+  if (!apiKey || !apiKey.startsWith('gsk_')) {
+    result.aiResponse = false;
+    result.aiError = 'Groq is unavailable; showing database capability matches.';
+    return result;
+  }
+  try {
       const prompt = `
 You are JanSetu's Government AI Advisor for Jharkhand State.
 Analyze the following challenge and university solution proposal to rank and explain the top 5 industry partners.
@@ -309,7 +331,7 @@ ${JSON.stringify(baselineTop5.map(p => ({
   stats: p.stats
 })))}
 
-Generate rich, government-grade explanation paragraphs for "reason" and "whyNotOthers" for each partner in JSON format.
+Generate concise explanations for each partner. Keep each reason under 25 words, each strengths list to 3 items, and each whyNotOthers under 20 words.
 Return a JSON object with:
 {
   "recommendations": [
@@ -322,9 +344,9 @@ Return a JSON object with:
   ]
 }
 `;
-      const geminiEnhancement = await callGemini(prompt, apiKey);
-      if (geminiEnhancement?.recommendations && Array.isArray(geminiEnhancement.recommendations)) {
-        geminiEnhancement.recommendations.forEach(enhanced => {
+      const groqEnhancement = await callGroq(prompt, apiKey);
+      if (groqEnhancement?.recommendations && Array.isArray(groqEnhancement.recommendations)) {
+        groqEnhancement.recommendations.forEach(enhanced => {
           const target = result.recommendations.find(r => r.name.toLowerCase() === enhanced.name?.toLowerCase());
           if (target) {
             if (enhanced.reason) target.reason = enhanced.reason;
@@ -335,10 +357,12 @@ Return a JSON object with:
           }
         });
       }
-    } catch (apiErr) {
-      console.warn('Gemini enhancement warning (using data-backed baseline):', apiErr.message);
-    }
+  } catch (apiErr) {
+    result.aiResponse = false;
+    result.aiError = `Groq unavailable; showing database capability matches (${apiErr.message})`;
+    return result;
   }
+  result.aiResponse = true;
 
   // Save to Cache
   aiCache.set(cacheKey, { timestamp: Date.now(), data: result });
@@ -528,7 +552,7 @@ async function matchUniversityForChallenge({ challenge, universities, refresh = 
     problemLocation: challenge?.district ? `${challenge.district}, Jharkhand` : 'Ranchi, Jharkhand',
     verificationStatus: 'Verified',
     analyzedAt: new Date().toISOString(),
-    aiModel: 'Gemini 1.5 Flash (University Civic Analytics)',
+    aiModel: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
     confidence: baselineTop5[0]?.confidence || 0.94,
     factorsUsed: 6,
     weights: {
@@ -542,10 +566,14 @@ async function matchUniversityForChallenge({ challenge, universities, refresh = 
     recommendations: baselineTop5
   };
 
-  // Enhance via Gemini if GEMINI_API_KEY is available
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (apiKey) {
-    try {
+  // The database ranking remains available when Groq quota is temporarily unavailable.
+  const apiKey = (process.env.GROQ_API_KEY || '').trim();
+  if (!apiKey || !apiKey.startsWith('gsk_')) {
+    result.aiResponse = false;
+    result.aiError = 'Groq is unavailable; showing database capability matches.';
+    return result;
+  }
+  try {
       const prompt = `
 You are JanSetu's Government University Allocation AI Advisor for Jharkhand State.
 Analyze the following challenge and rank the top 5 universities.
@@ -564,7 +592,7 @@ ${JSON.stringify(baselineTop5.map(u => ({
   stats: u.stats
 })))}
 
-Generate rich government-grade reason paragraphs and evidence strengths in JSON format:
+Generate concise reasons and evidence strengths in JSON format. Keep each reason under 25 words, each strengths list to 3 items, and each whyNotOthers under 20 words:
 {
   "recommendations": [
     {
@@ -576,9 +604,9 @@ Generate rich government-grade reason paragraphs and evidence strengths in JSON 
   ]
 }
 `;
-      const geminiEnhancement = await callGemini(prompt, apiKey);
-      if (geminiEnhancement?.recommendations && Array.isArray(geminiEnhancement.recommendations)) {
-        geminiEnhancement.recommendations.forEach(enhanced => {
+      const groqEnhancement = await callGroq(prompt, apiKey);
+      if (groqEnhancement?.recommendations && Array.isArray(groqEnhancement.recommendations)) {
+        groqEnhancement.recommendations.forEach(enhanced => {
           const target = result.recommendations.find(r => r.name.toLowerCase() === enhanced.name?.toLowerCase());
           if (target) {
             if (enhanced.reason) target.reason = enhanced.reason;
@@ -589,10 +617,12 @@ Generate rich government-grade reason paragraphs and evidence strengths in JSON 
           }
         });
       }
-    } catch (apiErr) {
-      console.warn('Gemini university enhancement warning:', apiErr.message);
-    }
+  } catch (apiErr) {
+    result.aiResponse = false;
+    result.aiError = `Groq unavailable; showing database capability matches (${apiErr.message})`;
+    return result;
   }
+  result.aiResponse = true;
 
   aiCache.set(cacheKey, { timestamp: Date.now(), data: result });
   return result;

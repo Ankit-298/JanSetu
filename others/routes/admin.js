@@ -17,7 +17,7 @@ const Team = require('../../university/database/Team');
 const Project = require('../../university/database/Project');
 
 const Challenge = require('../models/Challenge');
-const geminiService = require('../services/geminiService');
+const groqService = require('../services/geminiService');
 
 router.use(protect, isAdmin);
 
@@ -247,11 +247,10 @@ router.get('/proposals/:id/ai-match', async (req, res, next) => {
       }
     }
 
-    const registeredIndustryIds = await User.find({ role: 'industry_rep', industryPartnerId: { $ne: null } }).distinct('industryPartnerId');
-    const partners = await IndustryProfile.find({ isActive: true, _id: { $in: registeredIndustryIds } }).lean();
+    const partners = await IndustryProfile.find({ isActive: true }).lean();
     const refresh = req.query.refresh === 'true';
 
-    const aiResult = await geminiService.matchIndustryForProposal({
+    const aiResult = await groqService.matchIndustryForProposal({
       proposal,
       problem,
       partners,
@@ -264,9 +263,12 @@ router.get('/proposals/:id/ai-match', async (req, res, next) => {
     });
   } catch (e) {
     console.error('AI Matching error:', e);
-    res.status(500).json({
+    const isGroqConfigError = /GROQ_API_KEY|Invalid API Key|invalid_api_key/i.test(e.message || '');
+    res.status(isGroqConfigError ? 503 : 500).json({
       success: false,
-      error: 'AI analysis temporarily unavailable: ' + e.message
+      error: isGroqConfigError
+        ? 'Groq AI is not configured. Add a valid Groq API key starting with gsk_ to GROQ_API_KEY, then restart the server.'
+        : 'AI analysis temporarily unavailable: ' + e.message
     });
   }
 });
@@ -286,7 +288,7 @@ router.get('/challenges/:id/ai-match', async (req, res, next) => {
     const universities = await University.find({ isActive: true, name: { $in: profileNames } }).lean();
     const refresh = req.query.refresh === 'true';
 
-    const aiResult = await geminiService.matchUniversityForChallenge({
+    const aiResult = await groqService.matchUniversityForChallenge({
       challenge,
       universities,
       refresh
@@ -298,9 +300,12 @@ router.get('/challenges/:id/ai-match', async (req, res, next) => {
     });
   } catch (e) {
     console.error('University AI Matching error:', e);
-    res.status(500).json({
+    const isGroqConfigError = /GROQ_API_KEY|Invalid API Key|invalid_api_key/i.test(e.message || '');
+    res.status(isGroqConfigError ? 503 : 500).json({
       success: false,
-      error: 'AI analysis temporarily unavailable: ' + e.message
+      error: isGroqConfigError
+        ? 'Groq AI is not configured. Add a valid Groq API key starting with gsk_ to GROQ_API_KEY, then restart the server.'
+        : 'AI analysis temporarily unavailable: ' + e.message
     });
   }
 });

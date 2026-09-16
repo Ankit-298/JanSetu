@@ -4125,7 +4125,7 @@
               <span style="font-size:22px;">🤖</span>
               <div>
                 <div style="font-size:12.5px;font-weight:850;color:#1E3A8A;">JanSetu AI Mode Active (Recommended)</div>
-                <div style="font-size:11px;color:#3B82F6;">AI will auto-detect problem category, title & 50-70 word description from your photos.</div>
+                <div style="font-size:11px;color:#3B82F6;">AI will auto-detect problem category, title & 70-100 word description from your photos.</div>
               </div>
             </div>
             <button type="button" class="btn-step1-continue btn-ai-continue" id="step1ContinueBtn" onclick="handleStep1Next()">
@@ -4154,11 +4154,11 @@
           statusBox.style.display = 'block';
         }
         if (typeof showToast === 'function') {
-          showToast(currentLanguage === 'hi' ? '🤖 एआई ऑटो-एनालिसिस सक्षम (Gemini)' : '🤖 Gemini AI Auto-Analyze Enabled');
+          showToast(currentLanguage === 'hi' ? '🤖 एआई ऑटो-एनालिसिस सक्षम (Groq)' : '🤖 Groq AI Auto-Analyze Enabled');
         }
         // If photos are already attached and haven't been analyzed, analyze now
         if (selectedMediaFiles && selectedMediaFiles.some(m => m.type === 'photo') && !window.latestAiMediaAnalysis) {
-          triggerGeminiPhotoAnalysis();
+          triggerGroqPhotoAnalysis();
         }
       } else {
         if (statusBox) statusBox.style.display = 'none';
@@ -4184,7 +4184,6 @@
     }
     window.setReportMode = setReportMode;
 
-    const GROQ_API_KEY = window.__GROQ_API_KEY || '';
     window.isGroqAnalyzing = false;
     window.currentGroqAnalysisPromise = null;
 
@@ -4219,140 +4218,40 @@
     async function analyzeImageWithGroqDirect(dataUrl, mimeType = 'image/jpeg', citizenText = '') {
       try {
         if (!dataUrl && !citizenText) return null;
-        let formattedDataUrl = null;
-        if (dataUrl) {
-          let cleanBase64 = dataUrl;
-          if (cleanBase64.includes('base64,')) {
-            cleanBase64 = cleanBase64.split('base64,')[1];
-          } else if (cleanBase64.includes(',')) {
-            cleanBase64 = cleanBase64.split(',')[1];
-          }
-          cleanBase64 = cleanBase64.trim().replace(/\s/g, '');
 
-          let safeMime = (mimeType || 'image/jpeg').toLowerCase();
-          if (!safeMime.startsWith('image/')) safeMime = 'image/jpeg';
-          formattedDataUrl = `data:${safeMime};base64,${cleanBase64}`;
-        }
-
-        const promptText = `You are the Problem Structuring AI for JanSetu, a civic innovation platform based on SIH 26043.
-
-Your job is to convert a citizen's raw problem statement, spoken in Hindi, Hinglish, or English, into a concise, research-oriented societal challenge.
-
-The output will be shown to Government Admins, Universities, Faculty, Students, and Industry Partners.
-
-IMPORTANT:
-- Do NOT treat the input as a normal complaint.
-- Frame the problem as a societal challenge that may require research, innovation, prototyping, or technology-based intervention.
-- Do NOT invent facts, statistics, causes, affected people, locations, technologies, or solutions that the citizen did not mention.
-- You may improve grammar, clarity, and professional wording.
-- You may infer the broad category from the problem.
-- The description must remain faithful to the citizen's actual problem.
-- Do not propose a specific solution unless the citizen explicitly mentions one.
-- Do not mention JanSetu, AI, universities, government, or industry inside the description.
-- Keep the description between 70 and 100 words.
-- Use clear professional English for Category, Title, and Description.
-- Title must be concise, specific, and challenge-oriented.
-- Avoid generic titles such as "Road Problem", "Water Problem", "Electricity Issue", etc.
-- Avoid complaint-style wording such as "please repair", "please fix", "not working", "government should solve".
-- Focus on the underlying societal challenge, its context, impact, recurring nature if stated, existing gap if stated, and the need for investigation/innovation.
-- If the citizen does not provide enough information for a specific detail, do not fabricate it.
-
-CATEGORY OPTIONS:
-1. Disaster Management
-2. Infrastructure
-3. Water & Sanitation
-4. Healthcare
-5. Agriculture
-6. Environment
-7. Education
-8. Transportation
-9. Energy
-10. Accessibility
-11. Other
-
-Return ONLY valid JSON.
-Do not use Markdown.
-Do not add explanations outside JSON.
-
-JSON format:
-
-{
-  "category": "one category from the list",
-  "title": "concise research-oriented challenge title",
-  "description": "70-100 word research-oriented description"
-}`;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-        const contentParts = [
-          { type: 'text', text: promptText + (citizenText ? `\n\nCitizen Statement: "${citizenText}"` : '\n\nAttached Evidence: Ground reality problem photo.') }
-        ];
-        if (formattedDataUrl) {
-          contentParts.push({
-            type: 'image_url',
-            image_url: { url: formattedDataUrl }
-          });
-        }
-
-        const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        const resp = await fetch('/api/challenges/ai-structurize', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${GROQ_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          signal: controller.signal,
-          body: JSON.stringify({
-            model: 'qwen/qwen3.8-27b',
-            messages: [
-              {
-                role: 'user',
-                content: contentParts
-              }
-            ],
-            response_format: { type: 'json_object' },
-            temperature: 0.1,
-            max_tokens: 800
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl, mimeType, citizenText })
         });
-        clearTimeout(timeoutId);
 
-        if (resp.ok) {
-          const json = await resp.json();
-          const content = json.choices?.[0]?.message?.content;
-          if (content) {
-            let cleanText = content.trim();
-            if (cleanText.includes('```')) {
-              cleanText = cleanText.replace(/```json/gi, '').replace(/```/g, '').trim();
-            }
-            const firstBrace = cleanText.indexOf('{');
-            const lastBrace = cleanText.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1) {
-              cleanText = cleanText.slice(firstBrace, lastBrace + 1);
-            }
-            const parsed = JSON.parse(cleanText);
-            const mapped = mapGroqCategoryToUi(parsed.category);
-            return {
-              category: parsed.category,
-              categoryKey: mapped.categoryKey,
-              categoryLabel: mapped.categoryLabel,
-              title: parsed.title,
-              description: parsed.description,
-              confidence: 96,
-              priority: 'high'
-            };
-          }
-        } else {
-          const errText = await resp.text();
-          console.warn('[Groq Vision Direct] API error status:', resp.status, errText);
+        if (!resp.ok) {
+          const errJson = await resp.json().catch(() => ({}));
+          console.warn('[AI Structuring] Backend rejected request:', resp.status, errJson.message || resp.statusText);
+          return null;
         }
+
+        const json = await resp.json();
+        if (!json || !json.success || !json.data) return null;
+
+        const parsed = json.data;
+        const mapped = mapGroqCategoryToUi(parsed.category);
+        return {
+          category: parsed.category,
+          categoryKey: mapped.categoryKey,
+          categoryLabel: mapped.categoryLabel,
+          title: parsed.title,
+          description: parsed.description,
+          confidence: 96,
+          priority: 'high'
+        };
       } catch (err) {
-        console.error('[Groq Vision Direct] Exception during vision analysis:', err);
+        console.error('[AI Structuring] Exception during analysis:', err);
       }
       return null;
     }
     window.analyzeImageWithGroqDirect = analyzeImageWithGroqDirect;
-    window.analyzeImageWithGeminiDirect = analyzeImageWithGroqDirect;
+    window.analyzeImageWithGroq = analyzeImageWithGroqDirect;
 
     function applyAiAnalysisToSteps(d) {
       if (!d) return;
@@ -4447,10 +4346,9 @@ JSON format:
       const photo = selectedMediaFiles && selectedMediaFiles.find(m => m.type === 'photo' && m.dataUrl);
       if (!photo) return null;
 
-      window.isGroqAnalyzing = true;
-      window.isGeminiAnalyzing = true;
-
       const statusBox = document.getElementById('aiPhotoStatusBox');
+      window.isGroqAnalyzing = true;
+
       if (statusBox) {
         statusBox.style.display = 'block';
         statusBox.innerHTML = `
@@ -4458,7 +4356,7 @@ JSON format:
             <div style="font-size:20px;animation:spin 1s linear infinite;">⚡</div>
             <div style="flex:1;">
               <div style="font-size:12.5px;font-weight:800;color:#1E3A8A;">🤖 JanSetu AI / Groq Vision Analysis in progress...</div>
-              <div style="font-size:11px;color:#3B82F6;font-weight:600;margin-top:2px;">Structuring civic problem into research-oriented societal challenge (70-100 words) with Groq LPU...</div>
+              <div style="font-size:11px;color:#3B82F6;font-weight:600;margin-top:2px;">Structuring civic problem into a research-oriented societal challenge (70-100 words) with Groq Vision...</div>
             </div>
           </div>
         `;
@@ -4481,7 +4379,6 @@ JSON format:
       }
 
       window.isGroqAnalyzing = false;
-      window.isGeminiAnalyzing = false;
 
       if (contBtn) {
         contBtn.innerHTML = `<span>Continue with AI</span> ➔`;
@@ -4490,11 +4387,14 @@ JSON format:
       }
 
       if (!d || !d.categoryKey) {
+        if (window.setReportMode) {
+          window.setReportMode('manual');
+        }
         if (statusBox) {
           statusBox.innerHTML = `
-            <div style="background:#FEF2F2;border:1.5px solid #FECACA;border-radius:12px;padding:12px 16px;color:#991B1B;">
-              <div style="font-size:12px;font-weight:800;">⚠️ Groq Vision analysis encountered an issue.</div>
-              <div style="font-size:11px;margin-top:2px;">Please check internet connection or switch to Manual Mode.</div>
+            <div style="background:#F8FAFC;border:1.5px solid #CBD5E1;border-radius:12px;padding:12px 16px;color:#334155;">
+              <div style="font-size:12px;font-weight:800;">⚠️ AI analysis is temporarily unavailable.</div>
+              <div style="font-size:11px;margin-top:2px;">Manual mode has been activated so you can continue the report without interruption.</div>
             </div>
           `;
         }
@@ -4538,7 +4438,7 @@ JSON format:
       return d;
     }
     window.triggerGroqPhotoAnalysis = triggerGroqPhotoAnalysis;
-    window.triggerGeminiPhotoAnalysis = triggerGroqPhotoAnalysis;
+    window.triggerGroqPhotoAnalysis = triggerGroqPhotoAnalysis;
 
     async function handleStep1Next() {
       // 1. Check if media exists
@@ -4553,8 +4453,8 @@ JSON format:
       }
 
       // If AI mode is active and Groq is currently analyzing, wait for it!
-      const activePromise = window.currentGroqAnalysisPromise || window.currentGeminiAnalysisPromise;
-      if (reportAiMode && (window.isGroqAnalyzing || window.isGeminiAnalyzing) && activePromise) {
+      const activePromise = window.currentGroqAnalysisPromise;
+      if (reportAiMode && window.isGroqAnalyzing && activePromise) {
         const contBtn = document.getElementById('step1ContinueBtn');
         if (contBtn) {
           contBtn.innerHTML = `<span><span style="display:inline-block;animation:spin 1s linear infinite;">⏳</span> Completing AI Analysis...</span>`;
@@ -4992,7 +4892,6 @@ JSON format:
       // Trigger Groq photo analysis if AI mode is enabled
       if (reportAiMode && selectedMediaFiles && selectedMediaFiles.some(m => m.type === 'photo')) {
         window.currentGroqAnalysisPromise = triggerGroqPhotoAnalysis();
-        window.currentGeminiAnalysisPromise = window.currentGroqAnalysisPromise;
       }
     }
     window.handleMediaSelect = handleMediaSelect;
@@ -5102,7 +5001,7 @@ JSON format:
 
       // AI Mode
       if (typeof showToast === 'function') {
-        showToast(currentLanguage === 'hi' ? '🤖 JanSetu (Gemini AI) विश्लेषण सक्रिय...' : '🤖 Analyzing evidence with JanSetu AI...');
+        showToast(currentLanguage === 'hi' ? '🤖 JanSetu (Groq AI) विश्लेषण सक्रिय...' : '🤖 Analyzing evidence with Groq AI...');
       }
 
       if (window.latestAiMediaAnalysis && window.latestAiMediaAnalysis.categoryKey) {
@@ -5110,7 +5009,7 @@ JSON format:
       } else {
         const photo = (selectedMediaFiles && selectedMediaFiles.find(f => f.type === 'photo' && (f.dataUrl || f.file))) || (selectedMediaFiles && selectedMediaFiles[0]);
         if (photo) {
-          triggerGeminiPhotoAnalysis().then(() => {
+          triggerGroqPhotoAnalysis().then(() => {
             handleStep1Next();
           }).catch(() => {
             handleStep1Next();

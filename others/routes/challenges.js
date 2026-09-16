@@ -7,7 +7,7 @@ const {
   getChallengeChat, postChallengeChatMessage, markChallengeChatRead,
   getMyChallenges, getChallengeStats, classifyChallengeText,
   toggleSupport, getPublicFeed, getMapData,
-  checkDuplicates, parseVoice, validateResolution, provideAdditionalInfo,
+  checkDuplicates, parseVoice, aiStructurizeChallenge, validateResolution, provideAdditionalInfo,
   assignIndustryPartner, togglePraise, meTooChallenge
 } = require('../controllers/challengeController');
 const { protect, optionalAuth } = require('../middleware/auth');
@@ -32,6 +32,7 @@ router.get('/stats', cacheService.middleware('challenges:stats', 15), getChallen
 router.post('/classify', classifyChallengeText);
 router.post('/check-duplicates', checkDuplicates);
 router.post('/parse-voice', parseVoice);
+router.post('/ai-structurize', aiStructurizeChallenge);
 router.get('/my', protect, cacheService.middleware('challenges:my', 5), getMyChallenges);
 router.get('/', optionalAuth, cacheService.middleware('challenges:list', 5), getChallenges);
 router.post('/', optionalAuth, (req, res, next) => { req.uploadSubDir = 'challenges'; next(); }, upload.array('attachments', 10), createChallenge);

@@ -1594,6 +1594,22 @@ body.sidebar-collapsed .drawer-floating-toggle {
   margin-bottom: 24px;
 }
 
+.ai-groq-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 7px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+
 .aimatch-telemetry-card {
   background: #FFFFFF;
   border: 1px solid var(--border-subtle);

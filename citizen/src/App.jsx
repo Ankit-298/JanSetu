@@ -901,7 +901,7 @@ function App() {
               <span style={{"fontSize":"22px"}}>🤖</span>
               <div>
                 <div style={{"fontSize":"12.5px","fontWeight":"850","color":"#1E3A8A"}}>JanSetu AI Mode Active (Recommended)</div>
-                <div style={{"fontSize":"11px","color":"#3B82F6"}}>AI will auto-detect problem category, title &amp; 50-70 word description from your photos.</div>
+                <div style={{"fontSize":"11px","color":"#3B82F6"}}>AI will auto-detect problem category, title &amp; 70-100 word description from your photos.</div>
               </div>
             </div>
             <button type="button" className="btn-step1-continue btn-ai-continue" id="step1ContinueBtn" onClick={() => { (window.handleStep1Next || handleStep1Next)(); }}>
@@ -950,7 +950,7 @@ function App() {
           </div>
         </div>
 
-        {/* STEP 3: PROBLEM DETAILS (VOICE / TEXT / 50-70 WORD AI DESCRIPTION) */}
+        {/* STEP 3: PROBLEM DETAILS (VOICE / TEXT / 70-100 WORD AI DESCRIPTION) */}
         <div id="stepSection3" style={{"display":"none"}}>
           <div className="voice-record-banner">
             <div className="voice-left">
@@ -983,7 +983,7 @@ function App() {
           </div>
 
           <div className="form-group-field" style={{"marginTop":"10px"}}>
-            <label className="form-label-text" data-i18n="label_problem_desc">Problem Description (50-70 words) *</label>
+            <label className="form-label-text" data-i18n="label_problem_desc">Problem Description (70-100 words) *</label>
             <textarea className="form-input-control" id="reportDescription" rows="4"
               placeholder="Describe the issue in detail (e.g. location, since when, how many people affected)..."
               onInput={(e) => {

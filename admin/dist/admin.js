@@ -9,6 +9,10 @@ var industryPartners = [];
 var currentAssignChallengeId = null;
 var heatmapInstance = null;
 var _chartInstances = {};
+var _challengeRealtimeInterval = null;
+var _challengeRealtimeBusy = false;
+var _adminRealtimeInterval = null;
+var _adminRealtimeBusy = false;
 
 // Resilient Self-Authenticating Admin API
 var _adminTokenPromise = null;
@@ -199,6 +203,8 @@ async function initAdmin() {
       if (typeof loadIndustryForModal === 'function') loadIndustryForModal();
     } catch (e) {}
   }, 100);
+
+  startAdminRealtimeSync();
 }
 
 if (document.readyState === 'loading') {
@@ -318,7 +324,14 @@ window.toggleSidebar = () => {
 
 
 window.openModal = (id) => { const el = document.getElementById(id); if (el) el.classList.add('open'); };
-window.closeModal = (id) => { const el = document.getElementById(id); if (el) el.classList.remove('open'); };
+window.closeModal = (id) => {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('open');
+  if (id === 'challengeActionModal' && _challengeRealtimeInterval) {
+    clearInterval(_challengeRealtimeInterval);
+    _challengeRealtimeInterval = null;
+  }
+};
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
 });
@@ -728,7 +741,7 @@ window.filterChallengesByTab = (tabStatus) => {
   loadAdminChallenges();
 };
 
-function loadAdminChallenges(tabOverride) {
+function loadAdminChallenges(tabOverride, silent = false) {
   if (tabOverride !== undefined) {
     currentChallengeStatusTab = tabOverride;
     const tabGroup = document.getElementById('adminChallengeStatusTabs');
@@ -760,8 +773,8 @@ function loadAdminChallenges(tabOverride) {
     const priority = document.getElementById('adminPriorityFilter')?.value || '';
     const cardsContainer = document.getElementById('challengesCardsContainer');
     const tbody = document.getElementById('challengesTableBody');
-    if (cardsContainer) cardsContainer.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:50px"><div class="spinner" style="margin:0 auto"></div></div>';
-    if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+    if (!silent && cardsContainer) cardsContainer.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:50px"><div class="spinner" style="margin:0 auto"></div></div>';
+    if (!silent && tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto"></div></td></tr>';
 
     try {
       const res = await API.get('/challenges', { search, status, category, priority, page: adminChallengePage, limit: 20 });
@@ -790,6 +803,30 @@ function loadAdminChallenges(tabOverride) {
 window.loadAdminChallenges = loadAdminChallenges;
 
 window.debounceLoadChallenges = () => loadAdminChallenges();
+
+function startAdminRealtimeSync() {
+  if (_adminRealtimeInterval) clearInterval(_adminRealtimeInterval);
+  _adminRealtimeInterval = setInterval(async () => {
+    if (document.hidden || _adminRealtimeBusy) return;
+    _adminRealtimeBusy = true;
+    try {
+      await Promise.allSettled([
+        loadOverview(),
+        loadAdminChallenges(undefined, true)
+      ]);
+
+      const activeSection = document.querySelector('.dashboard-section.active')?.id || '';
+      if (activeSection === 'section-proposals' && typeof loadAdminProposals === 'function') {
+        await loadAdminProposals();
+      }
+    } catch (error) {
+      console.warn('Admin realtime sync failed:', error.message);
+    } finally {
+      _adminRealtimeBusy = false;
+    }
+  }, 10000);
+}
+window.startAdminRealtimeSync = startAdminRealtimeSync;
 
 window.setChallengeViewMode = function(mode) {
   const cardsContainer = document.getElementById('challengesCardsContainer');
@@ -1765,9 +1802,9 @@ async function openChallengeAction(id) {
                   <div class="cam-card-sub">Multi-stakeholder innovation progression</div>
                 </div>
               </div>
-              <span class="cam-badge" style="background:#002D62;color:#FFFFFF;padding:4px 10px;font-size:10.5px">Active: ${(c.status||'submitted').replace(/_/g,' ').toUpperCase()}</span>
+              <span id="caLiveStatusBadge" class="cam-badge" style="background:#002D62;color:#FFFFFF;padding:4px 10px;font-size:10.5px">Active: ${(c.status||'submitted').replace(/_/g,' ').toUpperCase()}</span>
             </div>
-            ${renderAdminTimelineTracker(c)}
+            <div id="caLiveTimelineTracker">${renderAdminTimelineTracker(c)}</div>
           </div>
 
           <!-- 2. Citizen Ground Problem Statement (Redesigned: High Legibility, No harsh green) -->
@@ -1912,7 +1949,7 @@ async function openChallengeAction(id) {
                 <div class="cam-icon-box navy" style="margin-top:2px">🏛️</div>
                 <div style="flex:1;min-width:0">
                   <div class="cam-partner-tag">ASSIGNED ACADEMIC R&amp;D PARTNER</div>
-                  <div class="cam-partner-name" style="font-size:14px;color:${(c.universityAssigned || c.assignedUniversity) ? '#0f172a' : '#94a3b8'}">
+                  <div id="caLiveUniversityName" class="cam-partner-name" style="font-size:14px;color:${(c.universityAssigned || c.assignedUniversity) ? '#0f172a' : '#94a3b8'}">
                     ${c.universityAssigned || c.assignedUniversity?.name || c.assignedUniversity?.shortName || 'Empty (Not Assigned)'}
                   </div>
                 </div>
@@ -1935,7 +1972,7 @@ async function openChallengeAction(id) {
                 <div class="cam-icon-box" style="margin-top:2px;background:#d1fae5;color:#047857">🏢</div>
                 <div style="flex:1;min-width:0">
                   <div class="cam-partner-tag" style="color:#047857">ASSIGNED INDUSTRY PARTNER</div>
-                  <div class="cam-partner-name" style="font-size:14px;color:${(c.industryAssigned || (c.industryCollaborators && c.industryCollaborators[0]?.partner)) ? '#0f172a' : '#94a3b8'}">
+                  <div id="caLiveIndustryName" class="cam-partner-name" style="font-size:14px;color:${(c.industryAssigned || (c.industryCollaborators && c.industryCollaborators[0]?.partner)) ? '#0f172a' : '#94a3b8'}">
                     ${c.industryAssigned || (c.industryCollaborators && c.industryCollaborators[0]?.partner?.name) || 'Empty (Not Assigned)'}
                   </div>
                 </div>
@@ -2062,12 +2099,53 @@ async function openChallengeAction(id) {
     cancelBtn.onclick = () => closeModal('challengeActionModal');
     footer.appendChild(cancelBtn);
 
+    startChallengeRealtimeTracker(c._id);
+
   } catch(e) {
     console.error('Error in openChallengeAction:', e);
     body.innerHTML = '<div style="text-align:center;padding:40px;color:#DC2626;font-weight:700">Error loading challenge data. Please retry.</div>';
   }
 }
 window.openChallengeAction = openChallengeAction;
+
+function startChallengeRealtimeTracker(challengeId) {
+  if (_challengeRealtimeInterval) clearInterval(_challengeRealtimeInterval);
+  _challengeRealtimeInterval = setInterval(async () => {
+    const modal = document.getElementById('challengeActionModal');
+    if (!modal || !modal.classList.contains('open') || _challengeRealtimeBusy) return;
+
+    _challengeRealtimeBusy = true;
+    try {
+      const response = await API.get('/challenges/' + challengeId);
+      const latest = response && response.data;
+      if (!latest) return;
+
+      const timeline = document.getElementById('caLiveTimelineTracker');
+      if (timeline) timeline.innerHTML = renderAdminTimelineTracker(latest);
+
+      const statusBadge = document.getElementById('caLiveStatusBadge');
+      if (statusBadge) statusBadge.textContent = `Active: ${(latest.status || 'submitted').replace(/_/g, ' ').toUpperCase()}`;
+
+      const universityName = document.getElementById('caLiveUniversityName');
+      if (universityName) {
+        universityName.textContent = latest.universityAssigned || latest.assignedUniversity?.name || latest.assignedUniversity?.shortName || 'Empty (Not Assigned)';
+        universityName.style.color = latest.universityAssigned || latest.assignedUniversity ? '#0f172a' : '#94a3b8';
+      }
+
+      const industryName = document.getElementById('caLiveIndustryName');
+      if (industryName) {
+        const assignedIndustry = latest.industryAssigned || latest.industryCollaborators?.[0]?.partner?.name;
+        industryName.textContent = assignedIndustry || 'Empty (Not Assigned)';
+        industryName.style.color = assignedIndustry ? '#0f172a' : '#94a3b8';
+      }
+    } catch (error) {
+      console.warn('Challenge realtime tracker refresh failed:', error.message);
+    } finally {
+      _challengeRealtimeBusy = false;
+    }
+  }, 5000);
+}
+window.startChallengeRealtimeTracker = startChallengeRealtimeTracker;
 
 
 window.loadAdminComments = async (challengeId) => {
@@ -3788,6 +3866,7 @@ function renderAIMatchingListView(data, referenceId, matchingType = 'industry') 
 
                 <div class="ai-rec-main">
                   <div class="ai-rec-title">
+                    ${partner.rank === 1 && data.aiResponse === true ? '<span class="ai-groq-logo" title="Matched by Groq AI">AI</span>' : ''}
                     <span>${partner.name}</span>
                   </div>
                   <div class="ai-rec-location">

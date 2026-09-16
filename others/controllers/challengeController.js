@@ -1600,6 +1600,127 @@ exports.parseVoice = async (req, res, next) => {
   }
 };
 
+// @desc    Structurize report content from citizen text and image using Groq Vision
+// @route   POST /api/challenges/ai-structurize
+// @access  Public
+exports.aiStructurizeChallenge = async (req, res, next) => {
+  try {
+    const { dataUrl, mimeType = 'image/jpeg', citizenText = '' } = req.body || {};
+    const textInput = (citizenText || '').trim();
+
+    const providerKey = (process.env.GROQ_API_KEY || '').trim();
+    const provider = providerKey.startsWith('gsk_') ? 'groq' : null;
+
+    if (!provider) {
+      return res.status(503).json({ success: false, error: 'A valid GROQ_API_KEY is required for image analysis.' });
+    }
+
+    const prompt = `You are the Problem Structuring AI for a civic innovation platform based on SIH 26043.
+
+Convert the citizen's raw problem statement and attached image into a concise, research-oriented societal challenge for Government Admins, Universities, Faculty, Students, and Industry Partners.
+
+Rules:
+- Do not treat the input as a normal complaint.
+- Use only facts visible in the image or stated by the citizen. Do not invent facts, statistics, causes, affected people, locations, technologies, or solutions.
+- You may improve grammar and infer only the broad category.
+- Do not propose a specific solution unless the citizen explicitly mentions one.
+- Do not mention JanSetu, AI, universities, government, or industry inside the description.
+- Description must be professional English and exactly 70 to 100 words.
+- Title must be concise, specific, and challenge-oriented; avoid generic titles such as "Road Problem" or "Water Problem".
+- Avoid complaint wording such as "please repair", "please fix", "not working", or "government should solve".
+- Return ONLY valid JSON with exactly these keys: category, title, description.
+- category must be exactly one of: Disaster Management, Infrastructure, Water & Sanitation, Healthcare, Agriculture, Environment, Education, Transportation, Energy, Accessibility, Other.
+
+Citizen statement:
+${textInput || '(No text provided; inspect the attached image carefully.)'}`;
+
+    let payload;
+    let endpoint;
+    let headers;
+    if (provider === 'groq') {
+      endpoint = 'https://api.groq.com/openai/v1/chat/completions';
+      payload = {
+        model: process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            ...(dataUrl && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(dataUrl)
+              ? [{ type: 'image_url', image_url: { url: dataUrl } }]
+              : [])
+          ]
+        }],
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+        max_tokens: 700
+      };
+      headers = {
+        Authorization: `Bearer ${providerKey}`,
+        'Content-Type': 'application/json'
+      };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        signal: controller.signal,
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.warn('[AI Structurize] provider rejected request:', response.status, errText);
+        return res.status(502).json({ success: false, error: 'Groq image analysis failed.' });
+      }
+
+      const json = await response.json();
+      const content = json?.choices?.[0]?.message?.content;
+      if (!content) {
+        return res.status(502).json({ success: false, error: 'Groq returned an empty analysis.' });
+      }
+
+      let cleanText = String(content).trim();
+      if (cleanText.includes('```')) {
+        cleanText = cleanText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      }
+      const start = cleanText.indexOf('{');
+      const end = cleanText.lastIndexOf('}');
+      if (start !== -1 && end !== -1) {
+        cleanText = cleanText.slice(start, end + 1);
+      }
+      const parsed = JSON.parse(cleanText);
+      const allowedCategories = new Set(['Disaster Management', 'Infrastructure', 'Water & Sanitation', 'Healthcare', 'Agriculture', 'Environment', 'Education', 'Transportation', 'Energy', 'Accessibility', 'Other']);
+      const category = allowedCategories.has(parsed.category) ? parsed.category : 'Other';
+      const title = String(parsed.title || '').trim();
+      const description = String(parsed.description || '').trim();
+      const wordCount = description.split(/\s+/).filter(Boolean).length;
+      if (!title || wordCount < 70 || wordCount > 100) {
+        return res.status(502).json({ success: false, error: 'Groq returned an invalid structured challenge.' });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          category,
+          title,
+          description,
+          confidence: 0.9,
+          priority: 'medium'
+        }
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch (error) {
+    console.warn('[AI Structurize] Groq Vision exception:', error.message);
+    return res.status(502).json({ success: false, error: 'Groq image analysis is temporarily unavailable.' });
+  }
+};
+
 // @desc    Citizen validates resolution of problem (Confirm / Reopen)
 // @route   POST /api/challenges/:id/validate-resolution
 // @access  Private (Citizen submitter)
