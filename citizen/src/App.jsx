@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './citizenstyle.css';
 import AIReportAgent from '../ai/AIReportAgent';
 import AIFloatingTrigger from '../ai/AIFloatingTrigger';
@@ -8,6 +8,61 @@ import ExploreChallenges from './components/ExploreChallenges';
 function App() {
   const [isVoiceAgentOpen, setIsVoiceAgentOpen] = useState(false);
   const [activePage, setActivePage] = useState('dashboard'); // 'dashboard' | 'explore'
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
+  const cameraVideoRef = useRef(null);
+  const cameraCanvasRef = useRef(null);
+
+  useEffect(() => {
+    if (cameraVideoRef.current && cameraStream) {
+      cameraVideoRef.current.srcObject = cameraStream;
+    }
+  }, [cameraStream]);
+
+  useEffect(() => () => {
+    if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+  }, [cameraStream]);
+
+  const closeLiveCamera = () => {
+    if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+    setCameraStream(null);
+    setIsCameraOpen(false);
+  };
+
+  const openLiveCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      document.getElementById('mediaCameraInput')?.click();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false
+      });
+      setCameraStream(stream);
+      setIsCameraOpen(true);
+    } catch (error) {
+      console.warn('Camera access unavailable:', error);
+      document.getElementById('mediaCameraInput')?.click();
+    }
+  };
+
+  const captureLivePhoto = () => {
+    const video = cameraVideoRef.current;
+    const canvas = cameraCanvasRef.current;
+    if (!video || !canvas || !video.videoWidth) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], `camera-evidence-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      (window.handleMediaSelect || (() => {}))({ files: [file] }, 'photo');
+      closeLiveCamera();
+    }, 'image/jpeg', 0.9);
+  };
 
   useEffect(() => {
     window.openAIVoiceReport = () => setIsVoiceAgentOpen(true);
@@ -850,6 +905,19 @@ function App() {
                 <input type="file" id="mediaPhotoInput" multiple accept="image/png, image/jpeg, image/jpg, image/webp"
                   style={{"display":"none"}} onChange={(e) => { (window.handleMediaSelect || handleMediaSelect)(e.target, 'photo'); }} />
               </label>
+
+              {/* Live Camera Tile */}
+              <button type="button" className="upload-tile-card tile-camera" onClick={openLiveCamera} style={{"padding":"10px 12px","textAlign":"left","cursor":"pointer"}}>
+                <div className="tile-icon-square" style={{"background":"#EA580C","color":"#FFFFFF","width":"34px","height":"34px","fontSize":"16px"}}>
+                  <span>📸</span>
+                </div>
+                <div>
+                  <div className="tile-label-main" style={{"fontSize":"12.5px"}}>Open Camera</div>
+                  <div className="tile-label-sub" style={{"fontSize":"10px"}}>Take live photo</div>
+                </div>
+                <input type="file" id="mediaCameraInput" accept="image/*" capture="environment"
+                  style={{"display":"none"}} onChange={(e) => { (window.handleMediaSelect || handleMediaSelect)(e.target, 'photo'); }} />
+              </button>
 
               {/* Video Tile */}
               <label className="upload-tile-card tile-video" style={{"padding":"10px 12px"}}>
@@ -2389,6 +2457,15 @@ function App() {
           </div>
         </div>
 
+        <a href="/citizen/downloads/jansetu-citizen-android.zip" download
+          style={{"display":"flex","alignItems":"center","justifyContent":"space-between","gap":"12px","marginTop":"12px","padding":"12px 14px","border":"1px solid #BFDBFE","borderRadius":"10px","background":"#EFF6FF","color":"#1E3A8A","textDecoration":"none"}}>
+          <span>
+            <strong style={{"display":"block","fontSize":"12px"}}>📦 Download Citizen Android Folder</strong>
+            <span style={{"display":"block","fontSize":"10.5px","marginTop":"3px","color":"#475569"}}>Build-ready Capacitor project ZIP</span>
+          </span>
+          <span style={{"fontSize":"18px"}}>⬇️</span>
+        </a>
+
       </div>
 
       {/* Footer Buttons */}
@@ -3078,6 +3155,31 @@ function App() {
 
   {/* JanSetu Voice AI Floating Trigger (Lower Right Corner) */}
   <AIFloatingTrigger onOpen={() => setIsVoiceAgentOpen(true)} />
+
+  {isCameraOpen && (
+    <div className="modal-overlay" style={{"display":"flex","zIndex":"11000","background":"rgba(15,23,42,0.86)"}}>
+      <div className="modal-card-box" style={{"maxWidth":"560px","width":"calc(100% - 24px)","overflow":"hidden","background":"#0F172A"}}>
+        <div style={{"display":"flex","alignItems":"center","justifyContent":"space-between","padding":"12px 16px","color":"#FFFFFF"}}>
+          <div style={{"fontSize":"14px","fontWeight":"800"}}>📸 Live Camera</div>
+          <button type="button" onClick={closeLiveCamera} aria-label="Close camera"
+            style={{"border":"none","background":"rgba(255,255,255,0.14)","color":"#FFFFFF","borderRadius":"50%","width":"30px","height":"30px","cursor":"pointer"}}>✕</button>
+        </div>
+        <video ref={cameraVideoRef} autoPlay playsInline muted
+          style={{"display":"block","width":"100%","maxHeight":"62vh","objectFit":"cover","background":"#000"}} />
+        <canvas ref={cameraCanvasRef} style={{"display":"none"}} />
+        <div style={{"display":"flex","justifyContent":"center","gap":"10px","padding":"14px"}}>
+          <button type="button" onClick={captureLivePhoto}
+            style={{"padding":"10px 22px","border":"none","borderRadius":"8px","background":"#EA580C","color":"#FFFFFF","fontWeight":"800","cursor":"pointer"}}>
+            📸 Take Photo
+          </button>
+          <button type="button" onClick={closeLiveCamera}
+            style={{"padding":"10px 18px","border":"1px solid #64748B","borderRadius":"8px","background":"transparent","color":"#FFFFFF","fontWeight":"700","cursor":"pointer"}}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
 
   {/* JanSetu Real-Time Voice AI Agent Overlay & Phone Call UI */}
   <AIReportAgent
