@@ -4154,7 +4154,7 @@
           statusBox.style.display = 'block';
         }
         if (typeof showToast === 'function') {
-          showToast(currentLanguage === 'hi' ? '🤖 एआई ऑटो-एनालिसिस सक्षम (Groq)' : '🤖 Groq AI Auto-Analyze Enabled');
+          showToast(currentLanguage === 'hi' ? '🤖 एआई ऑटो-एनालिसिस सक्षम' : '🤖 JanSetu AI Auto-Analyze Enabled');
         }
         // If photos are already attached and haven't been analyzed, analyze now
         if (selectedMediaFiles && selectedMediaFiles.some(m => m.type === 'photo') && !window.latestAiMediaAnalysis) {
@@ -4308,7 +4308,7 @@
           const autoBanner = document.getElementById('aiCategoryAutoBanner');
           if (autoBanner) {
             autoBanner.style.display = 'block';
-            autoBanner.innerHTML = `🤖 <strong>${d.categoryLabel || d.categoryKey}</strong> auto-selected by Groq AI (${d.confidence || 95}% match). You can click any category below to adjust.`;
+            autoBanner.innerHTML = `🤖 <strong>${d.categoryLabel || d.categoryKey}</strong> auto-selected by JanSetu AI (${d.confidence || 95}% match). You can click any category below to adjust.`;
           }
         }, 60);
       }
@@ -4355,8 +4355,8 @@
           <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:12px;color:#1E40AF;box-shadow:0 2px 8px rgba(37,99,235,0.08);">
             <div style="font-size:20px;animation:spin 1s linear infinite;">⚡</div>
             <div style="flex:1;">
-              <div style="font-size:12.5px;font-weight:800;color:#1E3A8A;">🤖 JanSetu AI / Groq Vision Analysis in progress...</div>
-              <div style="font-size:11px;color:#3B82F6;font-weight:600;margin-top:2px;">Structuring civic problem into a research-oriented societal challenge (70-100 words) with Groq Vision...</div>
+              <div style="font-size:12.5px;font-weight:800;color:#1E3A8A;">🤖 JanSetu AI analysis in progress...</div>
+              <div style="font-size:11px;color:#3B82F6;font-weight:600;margin-top:2px;">Structuring civic problem into a research-oriented societal challenge (70-100 words)...</div>
             </div>
           </div>
         `;
@@ -4410,7 +4410,7 @@
           <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 16px;box-shadow:0 2px 10px rgba(16,185,129,0.1);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
               <span style="font-size:12.5px;font-weight:900;color:#166534;display:inline-flex;align-items:center;gap:6px;">
-                <span>✓</span> <span>Groq AI Structured Challenge:</span>
+                <span>✓</span> <span>JanSetu AI Structured Challenge:</span>
               </span>
               <span style="font-size:11.5px;font-weight:800;background:#DCFCE7;color:#15803D;padding:3px 10px;border-radius:8px;border:1px solid #86EFAC;">
                 ${d.categoryLabel || d.categoryKey} (${d.confidence || 95}% Match)
@@ -4427,12 +4427,6 @@
             </div>
           </div>
         `;
-      }
-
-      if (typeof showToast === 'function') {
-        showToast(currentLanguage === 'hi'
-          ? `✨ Groq AI ने समस्या '${d.categoryLabel || d.categoryKey}' पहचान ली है!`
-          : `✨ Groq AI detected '${d.categoryLabel || d.categoryKey}' from photo!`);
       }
 
       return d;
@@ -4460,7 +4454,7 @@
           contBtn.innerHTML = `<span><span style="display:inline-block;animation:spin 1s linear infinite;">⏳</span> Completing AI Analysis...</span>`;
         }
         if (typeof showToast === 'function') {
-          showToast(currentLanguage === 'hi' ? '⏳ AI आपकी फोटो का विश्लेषण कर रहा है, 1 सेकंड रुकें...' : '⏳ Groq AI is analyzing your photo, please wait a moment...');
+          showToast(currentLanguage === 'hi' ? '⏳ AI आपकी फोटो का विश्लेषण कर रहा है, 1 सेकंड रुकें...' : '⏳ JanSetu AI is analyzing your photo, please wait a moment...');
         }
         try {
           await activePromise;
@@ -5001,7 +4995,7 @@
 
       // AI Mode
       if (typeof showToast === 'function') {
-        showToast(currentLanguage === 'hi' ? '🤖 JanSetu (Groq AI) विश्लेषण सक्रिय...' : '🤖 Analyzing evidence with Groq AI...');
+        showToast(currentLanguage === 'hi' ? '🤖 JanSetu AI विश्लेषण सक्रिय...' : '🤖 Analyzing evidence with JanSetu AI...');
       }
 
       if (window.latestAiMediaAnalysis && window.latestAiMediaAnalysis.categoryKey) {
@@ -5495,20 +5489,7 @@ Return ONLY valid JSON:
         console.warn('Server deduplication check failed:', e);
       }
 
-      // 3. Client-side Groq AI Deduplication direct check (15 km radius & description match)
-      if (!detectedDuplicateChallenge) {
-        try {
-          const clientCandidates = [...(allReportsList || []), ...(exploreList || [])];
-          detectedDuplicateChallenge = await checkDuplicatesWithGroqDirect(
-            { title, description, category, district, block, village, coords: coordsToSend },
-            clientCandidates
-          );
-        } catch (groqClientErr) {
-          console.warn('Client Groq deduplication error:', groqClientErr);
-        }
-      }
-
-      // 4. Client-side heuristic fallback (threshold >= 70, radius <= 15 km)
+      // 3. Client-side heuristic fallback (threshold >= 70, radius <= 15 km)
       if (!detectedDuplicateChallenge) {
         const clientCandidates = [...(allReportsList || []), ...(exploreList || [])];
         let bestCandidate = null;

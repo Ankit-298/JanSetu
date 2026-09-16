@@ -5,6 +5,23 @@ const projectSchema = new mongoose.Schema({
   problemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Problem' },
   teamId: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
   status: { type: String, default: 'Assigned' }, // Matches stage for backwards compatibility
+  lifecycleState: {
+    type: String,
+    enum: ['APPROVED', 'INDUSTRY_MATCHED', 'IN_PROGRESS', 'PROTOTYPE', 'SMALL_SCALE_TESTING', 'FIELD_TESTING', 'IMPLEMENTATION', 'ADMIN_VERIFICATION', 'CITIZEN_VERIFICATION', 'COMPLETED', 'REOPENED'],
+    default: 'APPROVED',
+    index: true
+  },
+  lifecycleHistory: [{
+    state: String,
+    changedAt: { type: Date, default: Date.now },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    note: String
+  }],
+  health: {
+    status: { type: String, enum: ['ON_TRACK', 'AT_RISK', 'BLOCKED'], default: 'ON_TRACK' },
+    reason: String,
+    calculatedAt: Date
+  },
   stage: { 
     type: String, 
     enum: ['Assigned', 'In Progress', 'Prototype', 'Submitted', 'Deployed'], 

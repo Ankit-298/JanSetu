@@ -131,6 +131,7 @@ app.use('/api/challenges', require('./others/routes/challenges'));
 app.use('/api/notifications', require('./others/routes/notifications'));
 app.use('/api/admin', require('./others/routes/admin'));
 app.use('/api/industry', require('./others/routes/industry'));
+app.use('/api', require('./others/routes/projectLifecycle'));
 app.use('/api', require('./university/api'));
 
 // Comments standalone route (for delete, like, flag)

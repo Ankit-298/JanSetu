@@ -125,11 +125,13 @@ function setupVoiceAgentRoutes(app) {
   // 0. Active AI Provider Info endpoint (Sarvam AI)
   app.get('/api/voice-agent/provider', (req, res) => {
     const hasSarvam = Boolean((process.env.SARVAM_API_KEY || '').trim());
+    const sarvamQuotaExhausted = process.env.SARVAM_QUOTA_EXHAUSTED === 'true';
     res.json({
-      activeProvider: 'sarvam',
-      sarvamEnabled: hasSarvam,
-      poweredBadge: 'SARVAM AI POWERED',
-      modelChip: 'Sarvam 105B'
+      activeProvider: sarvamQuotaExhausted ? 'local-fallback' : 'sarvam',
+      sarvamEnabled: hasSarvam && !sarvamQuotaExhausted,
+      sarvamQuotaExhausted,
+      poweredBadge: sarvamQuotaExhausted ? 'VOICE FALLBACK ACTIVE' : 'SARVAM AI POWERED',
+      modelChip: sarvamQuotaExhausted ? 'Browser + Local Voice' : 'Sarvam 105B'
     });
   });
 
@@ -381,6 +383,9 @@ function setupVoiceAgentRoutes(app) {
             return data.audios[0];
           } else {
             console.warn('[VoiceAgent] Sarvam chunk error:', data);
+            if (sarvamRes.status === 402 || sarvamRes.status === 429 || data.error?.code === 'insufficient_quota_error') {
+              process.env.SARVAM_QUOTA_EXHAUSTED = 'true';
+            }
             return null;
           }
         } catch (e) {
@@ -411,10 +416,15 @@ function setupVoiceAgentRoutes(app) {
         return res.json(payload);
       }
 
-      return res.status(500).json({ error: 'Failed to synthesize speech' });
+      const quotaExhausted = process.env.SARVAM_QUOTA_EXHAUSTED === 'true';
+      return res.status(quotaExhausted ? 503 : 502).json({
+        error: quotaExhausted ? 'Sarvam AI credits are exhausted' : 'Failed to synthesize speech',
+        code: quotaExhausted ? 'insufficient_quota_error' : 'tts_failed',
+        fallback: 'browser_speech'
+      });
     } catch (err) {
       console.error('[VoiceAgent] Sarvam TTS error:', err.message);
-      return res.status(500).json({ error: err.message });
+      return res.status(502).json({ error: err.message, code: 'tts_failed', fallback: 'browser_speech' });
     }
   });
 
@@ -811,6 +821,10 @@ async function callSarvamConversationalLLM(session, userText) {
     if (!res.ok) {
       const errText = await res.text();
       console.error('[VoiceAgent] Sarvam API HTTP error:', res.status, errText);
+      if (res.status === 402 || res.status === 429 || /insufficient_quota|no credits|quota/i.test(errText)) {
+        process.env.SARVAM_QUOTA_EXHAUSTED = 'true';
+        return { error: 'insufficient_quota_error' };
+      }
       return { error: `Sarvam API error: ${res.status}` };
     }
 
@@ -819,6 +833,42 @@ async function callSarvamConversationalLLM(session, userText) {
     console.error('[VoiceAgent] Sarvam API fetch error:', err);
     return { error: err.message };
   }
+}
+
+function getLocalVoiceFallback(session, userText) {
+  const text = userText.trim();
+  const lower = text.toLowerCase();
+  const confirmation = /^(haan|han|yes|y|theek|sahi|bilkul|correct|ok|okay)/i.test(lower);
+
+  if (session.step === 'listening' || session.step === 'details') {
+    const category = detectCategoryFromSpeech(text);
+    const formatted = cleanAndFormatCivicText(text, category.name, session.lang);
+    session.draft = {
+      ...session.draft,
+      title: formatted.title,
+      category: category.officialCategory,
+      description: formatted.description
+    };
+    session.step = 'details';
+    return {
+      reply: `Samajh gaya — ${formatted.description.slice(0, 100)}. Kya yeh sahi hai?`,
+      toolCalls: [{ name: 'fill_details', args: session.draft }]
+    };
+  }
+
+  if (session.step === 'confirm_problem' && confirmation) {
+    session.step = 'location';
+    return {
+      reply: 'Theek hai. Ab upar GPS button dabakar apni location share kijiye.',
+      toolCalls: [{ name: 'advance_to_step', args: { step: 'location' } }]
+    };
+  }
+
+  return {
+    reply: session.lang === 'en'
+      ? 'Please describe the civic problem once more.'
+      : 'Kripya civic samasya ko ek baar phir thoda detail me batayein.'
+  };
 }
 
 /**
@@ -1155,13 +1205,14 @@ function setupVoiceAgentWebSocket(server) {
               }
             }
           } else {
-            console.warn('[VoiceAgent] LLM returned no choices, providing conversational guidance');
-            const fallbackSpeech = session.lang === 'en'
-              ? 'Could you please describe the civic problem again?'
-              : 'Kripya apni samasya ke baare me thoda vistaar se batayein.';
+            console.warn('[VoiceAgent] Sarvam unavailable; using local conversation fallback');
+            const fallback = getLocalVoiceFallback(session, userText);
+            for (const toolCall of fallback.toolCalls || []) {
+              await executeToolCall(toolCall.name, toolCall.args);
+            }
             safeSend({
               type: 'agent_utterance',
-              text: fallbackSpeech
+              text: fallback.reply
             });
           }
         }

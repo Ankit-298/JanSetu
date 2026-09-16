@@ -47,6 +47,10 @@ const notificationSchema = new mongoose.Schema({
     maxlength: 500
   },
   data: {
+    projectId: { type: mongoose.Schema.Types.ObjectId },
+    commitmentId: { type: mongoose.Schema.Types.ObjectId },
+    workflowId: { type: mongoose.Schema.Types.ObjectId },
+    proposalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proposal' },
     challengeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Challenge' },
     challengeRefId: String,
     problemId: String,

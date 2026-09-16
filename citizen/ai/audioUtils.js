@@ -270,6 +270,26 @@ async function speakText(text, langOrOnEnd, maybeOnEnd, maybeOnStart) {
   const cleanText = text.trim();
   const cacheKey = `${lang}_aditya_${cleanText}`;
 
+  const speakWithBrowser = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return false;
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = lang === 'en' ? 'en-IN' : 'hi-IN';
+    utterance.rate = currentTTSPace;
+    utterance.volume = Math.min(1, volumeBoostLevel);
+    utterance.onstart = () => {
+      if (thisSpeechId === currentSpeechId && onStart) onStart();
+    };
+    utterance.onend = () => {
+      if (thisSpeechId === currentSpeechId && onEnd) onEnd();
+    };
+    utterance.onerror = () => {
+      if (thisSpeechId === currentSpeechId && onEnd) onEnd();
+    };
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+    return true;
+  };
+
   // Helper to play an audio URL with GainNode fade-in/fade-out & analyser
   const playDataUrl = async (dataUrl) => {
     if (thisSpeechId !== currentSpeechId) return;
@@ -390,12 +410,11 @@ async function speakText(text, langOrOnEnd, maybeOnEnd, maybeOnStart) {
   } catch (e) {
     clearTimeout(timeoutId);
     console.warn('[VoiceAgent] Sarvam TTS error:', e.message || e);
-    if (thisSpeechId === currentSpeechId && onEnd) onEnd();
+    if (thisSpeechId === currentSpeechId && !speakWithBrowser() && onEnd) onEnd();
     return;
   }
 
-  // Strict requirement: Only authentic Sarvam AI Bulbul V3 voice speaks (no robotic demo browser voices)
-  if (thisSpeechId === currentSpeechId && onEnd) {
+  if (thisSpeechId === currentSpeechId && !speakWithBrowser() && onEnd) {
     onEnd();
   }
 }
@@ -410,6 +429,10 @@ function stopSpeaking() {
   if (activeAbortController) {
     try { activeAbortController.abort(); } catch (e) {}
     activeAbortController = null;
+  }
+
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    try { window.speechSynthesis.cancel(); } catch (e) {}
   }
 
   // Smooth fade-out before stopping audio

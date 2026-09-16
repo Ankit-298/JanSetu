@@ -160,8 +160,8 @@ export default function AIReportAgent({ isOpen, onClose, onReportSubmitted }) {
         hasAcknowledgedMediaRef.current = true;
         console.log('[VoiceAgent] Photo/Video evidence detected in DOM on Step 1!');
         speak((lang === 'hi' || lang === 'hinglish')
-          ? 'Bahut badhiya! Photo proof jud gaya hai aur Groq AI ne details analyze kar li hain. Hum agle kadam category par chalte hain.'
-          : 'Great! Photo proof attached and Groq AI has structured the challenge. Advancing to category selection.');
+          ? 'Bahut badhiya! Photo proof jud gaya hai aur JanSetu AI ne details analyze kar li hain. Hum agle kadam category par chalte hain.'
+          : 'Great! Photo proof attached and JanSetu AI has structured the challenge. Advancing to category selection.');
         setTimeout(() => {
           const contBtn = document.getElementById('step1ContinueBtn') || document.querySelector('#stepSection1 .btn-step1-continue');
           animateCursorToAndClick(contBtn || '#stepSection1 .modal-footer-nav button', () => {
@@ -1307,8 +1307,8 @@ export default function AIReportAgent({ isOpen, onClose, onReportSubmitted }) {
             try { photoInput.click(); } catch (e) {}
           }
           speak(isHindi
-            ? 'Theek hai, samasya ki photo chunein ya camera se lein. Photo judte hi Groq AI auto-detect karke agle kadam par chalega.'
-            : 'Please select or capture the photo. Groq AI will auto-detect your challenge and advance.');
+            ? 'Theek hai, samasya ki photo chunein ya camera se lein. Photo judte hi JanSetu AI auto-detect karke agle kadam par chalega.'
+            : 'Please select or capture the photo. JanSetu AI will auto-detect your challenge and advance.');
         }, 300);
         return;
       }

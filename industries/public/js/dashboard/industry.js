@@ -97,7 +97,7 @@ window.loadExploreChallenges = async function() {
         const univName = c.universityAssigned || (c.assignedUniversity && (c.assignedUniversity.name || c.assignedUniversity.shortName)) || 'Awaiting University Partner';
         const univLead = (c.assignedUniversity && c.assignedUniversity.dean) || 'Faculty Taskforce Lead';
 
-        const coverImg = c.coverImage || c.image || (c.attachments && c.attachments[0] && c.attachments[0].url) || (c.resolutionProof && c.resolutionProof.beforeImage) || '/images/solar-hospital.jpg';
+        const coverImg = c.coverImage || c.image || (c.attachments && c.attachments[0] && c.attachments[0].url) || (c.resolutionProof && c.resolutionProof.beforeImage) || '/images/campus-iit.jpg';
 
         const prio = (c.priority || 'high').toLowerCase();
         const priorityText = prio === 'urgent' ? 'Urgent Priority' : (prio === 'high' ? 'High Priority' : 'Medium Priority');
@@ -230,7 +230,7 @@ window.filterExploreChallenges = function() {
         
         <!-- Thumbnail -->
         <div style="width:160px;height:120px;flex-shrink:0;border-radius:10px;overflow:hidden;border:1px solid #cbd5e1;position:relative;background:#f8fafc;">
-          <img src="${item.thumbnail}" alt="${item.title}" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='/images/solar-hospital.jpg'" />
+          <img src="${item.thumbnail}" alt="${item.title}" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='/images/campus-iit.jpg'" />
         </div>
 
         <!-- Middle Content -->
@@ -386,7 +386,7 @@ window.loadCollaborationsData = async function(targetId = null) {
           pipelineStage: 4,
           stage: 'Pilot Testing',
           estimatedBudget: c.estimatedBudget || 15,
-          coverImage: c.coverImage || c.image || '/images/solar-hospital.jpg',
+          coverImage: c.coverImage || c.image || '/images/campus-iit.jpg',
           description: c.description || 'Solar powered backup system for uninterrupted power supply in rural health centers.'
         }));
       } else {
@@ -1465,7 +1465,7 @@ window.viewOpportunity = function(key) {
     bodyEl.innerHTML = `
       <div style="display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-start;">
         <div style="width: 240px; height: 160px; border-radius: 12px; overflow: hidden; border: 1.5px solid #cbd5e1; flex-shrink: 0; background: #f8fafc; box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
-          <img src="${item.thumbnail || '/images/solar-hospital.jpg'}" alt="${item.title}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='/images/agri-monitoring.jpg';" />
+          <img src="${item.thumbnail || '/images/campus-iit.jpg'}" alt="${item.title}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='/images/agri-monitoring.jpg';" />
         </div>
         <div style="flex: 1; min-width: 260px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -1763,7 +1763,7 @@ window.selectCommitmentProject = function(projId) {
   if (document.getElementById('commitDetailTitle')) document.getElementById('commitDetailTitle').textContent = c.title;
   if (document.getElementById('commitDetailUni')) document.getElementById('commitDetailUni').textContent = c.universityAssigned || 'Birla Institute of Technology, Mesra';
   if (document.getElementById('commitDetailLoc')) document.getElementById('commitDetailLoc').textContent = `📍 ${(c.location && c.location.district) || 'West Singhbhum'}, Jharkhand`;
-  if (document.getElementById('commitDetailThumb')) document.getElementById('commitDetailThumb').src = c.coverImage || c.image || '/images/solar-hospital.jpg';
+  if (document.getElementById('commitDetailThumb')) document.getElementById('commitDetailThumb').src = c.coverImage || c.image || '/images/campus-iit.jpg';
   if (document.getElementById('commitDetailBadge')) document.getElementById('commitDetailBadge').textContent = c.status === 'in_progress' ? 'Prototype & Pilot' : 'Solution Blueprinting';
   toastSuccess('Selected Commitment: ' + c.title);
 };

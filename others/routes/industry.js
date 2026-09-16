@@ -5,10 +5,13 @@ const CentralNotification = require('../models/Notification');
 const IndustryProfile = require('../models/IndustryProfile');
 const Challenge = require('../models/Challenge');
 const Project = require('../../university/database/Project');
+const ProjectCommitment = require('../../university/database/ProjectCommitment');
+const ProjectWorkflowRecord = require('../../university/database/ProjectWorkflowRecord');
 const Team = require('../../university/database/Team');
 const University = require('../models/University');
 const User = require('../models/User');
 const { optionalAuth } = require('../middleware/auth');
+const { logActivity } = require('../services/notificationService');
 
 // ── Helper to resolve industry partner from request ──
 async function resolvePartner(req) {
@@ -280,6 +283,9 @@ router.post('/proposals/:id/accept', optionalAuth, async (req, res, next) => {
       if (project) {
         project.stage = 'In Progress';
         project.status = 'In Progress';
+        project.lifecycleState = 'INDUSTRY_MATCHED';
+        project.lifecycleHistory = project.lifecycleHistory || [];
+        project.lifecycleHistory.push({ state: 'INDUSTRY_MATCHED', changedAt: new Date(), changedBy: req.user?._id || null, note: `Industry collaboration accepted by ${partnerName}` });
         project.proposalStatus = 'approved';
         if (partner) {
           project.assignedIndustry = partner._id;
@@ -315,6 +321,14 @@ router.post('/proposals/:id/accept', optionalAuth, async (req, res, next) => {
           };
         }
         await project.save();
+        await logActivity({
+          actor: req.user,
+          action: 'collaboration_started',
+          target: { type: 'System', id: project._id, name: project.title },
+          description: `Industry collaboration accepted for project ${project.title}.`,
+          metadata: { projectId: project._id, proposalId: proposal._id, industryId: partner?._id },
+          req
+        });
       }
     }
 
@@ -634,9 +648,11 @@ router.get('/collaborations', optionalAuth, async (req, res, next) => {
     const projectProblemIds = dbProjects.map(p => p.problemId).filter(Boolean);
     const projectProposalIds = dbProjects.map(p => p.proposalId).filter(Boolean);
     const projectTitles = dbProjects.map(p => p.title).filter(Boolean);
-    const [linkedChallenges, linkedProposals] = await Promise.all([
+    const [linkedChallenges, linkedProposals, dbCommitments, dbWorkflow] = await Promise.all([
       Challenge.find({ $or: [{ _id: { $in: projectProblemIds } }, { title: { $in: projectTitles } }] }).lean(),
-      Proposal.find({ _id: { $in: projectProposalIds } }).lean()
+      Proposal.find({ _id: { $in: projectProposalIds } }).lean(),
+      ProjectCommitment.find({ projectId: { $in: dbProjects.map(p => p._id) } }).sort({ createdAt: -1 }).lean(),
+      ProjectWorkflowRecord.find({ projectId: { $in: dbProjects.map(p => p._id) } }).sort({ createdAt: -1 }).lean()
     ]);
 
     const challengeMap = new Map();
@@ -647,6 +663,18 @@ router.get('/collaborations', optionalAuth, async (req, res, next) => {
 
     const proposalMap = new Map();
     linkedProposals.forEach(pr => proposalMap.set(pr._id.toString(), pr));
+    const commitmentMap = new Map();
+    dbCommitments.forEach(commitment => {
+      const key = commitment.projectId.toString();
+      if (!commitmentMap.has(key)) commitmentMap.set(key, []);
+      commitmentMap.get(key).push(commitment);
+    });
+    const workflowMap = new Map();
+    dbWorkflow.forEach(record => {
+      const key = record.projectId.toString();
+      if (!workflowMap.has(key)) workflowMap.set(key, []);
+      workflowMap.get(key).push(record);
+    });
 
     // A. Map DB Projects
     for (const p of dbProjects) {
@@ -660,6 +688,8 @@ router.get('/collaborations', optionalAuth, async (req, res, next) => {
 
       const linkedChal = challengeMap.get(p.problemId?.toString()) || challengeMap.get((p.title || '').trim().toLowerCase());
       const linkedProp = proposalMap.get(p.proposalId?.toString());
+      const projectCommitments = commitmentMap.get(idStr) || [];
+      const projectWorkflow = workflowMap.get(idStr) || [];
 
       // Real Challenge Image from database (Supabase / uploads)
       const realCover = linkedChal?.coverImage || linkedChal?.image || (linkedChal?.attachments && linkedChal?.attachments[0]?.url) || p.coverImage || p.image;
@@ -684,31 +714,20 @@ router.get('/collaborations', optionalAuth, async (req, res, next) => {
       const committedFunding = p.assignedIndustryDetails?.fundingCommitted || p.fundingSummary?.committed || linkedProp?.fundingRequested || 100001;
       
       // Calculate progress from milestones or default
-      let progress = 65;
+      let progress = 0;
       if (p.milestones && p.milestones.length > 0) {
         const approved = p.milestones.filter(m => m.status === 'approved').length;
         progress = Math.round((approved / p.milestones.length) * 100);
-      } else if (p.stage === 'Deployed') {
-        progress = 100;
-      } else if (p.stage === 'In Progress') {
-        progress = 75;
       }
 
-      let stageIdx = 4;
-      let stageLabel = 'Pilot Testing';
-      if (progress >= 90 || p.stage === 'Deployed') {
-        stageIdx = 6;
-        stageLabel = 'Ground Implementation';
-      } else if (progress >= 70) {
-        stageIdx = 4;
-        stageLabel = 'Pilot Testing';
-      } else if (progress >= 40) {
-        stageIdx = 3;
-        stageLabel = 'Prototype Ready';
-      } else {
-        stageIdx = 2;
-        stageLabel = 'Industry Support';
-      }
+      const lifecycleLabels = {
+        APPROVED: 'Approved', INDUSTRY_MATCHED: 'Industry Matched', IN_PROGRESS: 'In Progress',
+        PROTOTYPE: 'Prototype', SMALL_SCALE_TESTING: 'Small-Scale Testing', FIELD_TESTING: 'Field Testing',
+        IMPLEMENTATION: 'Implementation', ADMIN_VERIFICATION: 'Admin Verification',
+        CITIZEN_VERIFICATION: 'Citizen Verification', COMPLETED: 'Completed', REOPENED: 'Reopened'
+      };
+      const stageLabel = lifecycleLabels[p.lifecycleState] || p.stage || 'Approved';
+      const stageIdx = Math.max(0, Object.keys(lifecycleLabels).indexOf(p.lifecycleState || 'APPROVED'));
 
       // Domain-specific resolution
       const domainInfo = resolveProjectDomainAndImage(
@@ -751,11 +770,11 @@ router.get('/collaborations', optionalAuth, async (req, res, next) => {
           'Automated IoT telemetry monitoring and secure data transmission',
           'Field deployment signoff with District Administration'
         ],
-        commitments: [
-          { type: 'Financial Grant', status: 'Provided', amount: formatInr(committedFunding), detail: '100% Disbursed via State Escrow' },
-          { type: 'Technical Mentors', status: 'Active on Site', amount: '2 Senior Engineers', detail: 'Onsite validation and engineering review' },
-          { type: 'Testing Equipment', status: 'In Progress', amount: 'Field Sensor Rig', detail: 'Delivered from Regional Hub' }
-        ],
+        projectId: idStr,
+        lifecycleState: p.lifecycleState || 'APPROVED',
+        health: p.health || { status: 'ON_TRACK', reason: 'No health assessment available.' },
+        commitments: projectCommitments,
+        workflow: projectWorkflow,
         milestones: p.milestones && p.milestones.length > 0 ? p.milestones.map((m, idx) => ({
           title: m.title || `Milestone ${idx + 1}`,
           status: m.status === 'approved' ? 'Completed' : (m.status === 'pending_review' ? 'In Review' : 'Upcoming'),
@@ -767,45 +786,12 @@ router.get('/collaborations', optionalAuth, async (req, res, next) => {
           { title: 'M3: Working Prototype & Bench Validation', status: 'Completed', isApproved: true, signoff: 'TRL-5 Bench Verified' },
           { title: 'M4: Field Pilot & Real Telemetry', status: 'In Progress', isApproved: false, signoff: 'Underway' }
         ],
-        prototypeData: {
-          efficiency: '97.8%',
-          switchover: '< 8 ms',
-          temp: '36.5°C',
-          trl: 'TRL-5 Bench Verified'
-        },
-        pilotDetails: {
-          location: `${dist} — ${domainInfo.pilotLocation}`,
-          startDate: '15 Aug 2025',
-          duration: '45 days',
-          environment: domainInfo.pilotEnv,
-          objectives: domainInfo.objectives
-        },
-        telemetry: {
-          power: '5.4 kW',
-          battery: '82%',
-          load: '3.9 kW',
-          temp: '35 °C'
-        },
-        updates: [
-          { date: '14 Sep 2025', text: 'Telemetry data shows 99.4% continuous uptime over last 7 days.' },
-          { date: '11 Sep 2025', text: 'District inspection committee completed physical verification.' },
-          { date: '08 Sep 2025', text: 'Telemetry nodes synchronized with state innovation dashboard.' }
-        ],
-        fieldPhotos: [
-          { url: '', title: 'Site Inspection' },
-          { url: '', title: 'Telemetry Rig' },
-          { url: '', title: 'System Installation' }
-        ],
-        documents: [
-          { name: `Tripartite_MoU_${dist}_JanSetu.pdf`, type: 'Official MoU' },
-          { name: `Tax_Exemption_Certificate_80G_CSR.pdf`, type: 'CSR Certificate' },
-          { name: `SDO_Site_Readiness_Inspection_Report.pdf`, type: 'Inspection Sign-off' }
-        ],
-        impact: {
-          metric1: { label: 'Carbon Offset', value: '38.4 Tonnes / Yr', note: 'Verified by Pollution Control Board' },
-          metric2: { label: 'Citizens Impacted', value: '14,200 Residents', note: `Across ${dist} region` },
-          metric3: { label: 'Economic Savings', value: '₹ 4.2 Lakhs / Yr', note: 'Reduced operational expenditure' }
-        }
+        prototypeData: null,
+        pilotDetails: null,
+        telemetry: null,
+        updates: [],
+        fieldPhotos: [],
+        impact: null
       });
     }
 
@@ -874,9 +860,11 @@ router.get('/collaborations', optionalAuth, async (req, res, next) => {
         fundingFormatted: formatInr(funding),
         ourRole: domainInfo.role,
         timeline: 'May 2025 – Jan 2026',
-        progress: 60,
-        stage: 'Pilot Testing',
-        stageIndex: 4,
+        projectId: propProjectId || null,
+        lifecycleState: 'INDUSTRY_MATCHED',
+        progress: 0,
+        stage: 'Industry Matched',
+        stageIndex: 1,
         statusBadge: 'Collaboration Active',
         coverImage: realCover || domainInfo.coverImage,
         description: realDescription,
@@ -886,39 +874,18 @@ router.get('/collaborations', optionalAuth, async (req, res, next) => {
         tags: domainInfo.tags,
         abstract: prop.solutionSummary || 'Approved solution blueprint undergoing field validation testing.',
         requirements: prop.industrySupportRequired || ['Funding Grant', 'Testing Lab Facilities', 'Technical Mentorship'],
-        commitments: [
-          { type: 'Financial Grant', status: 'Committed', amount: formatInr(funding), detail: 'Allocated via State Escrow' },
-          { type: 'Corporate Mentors', status: 'Assigned', amount: 'Innovation Lead', detail: 'Technical Advisory Board' }
-        ],
+        commitments: [],
         milestones: [
           { title: 'Proposal Architecture Review', status: 'Completed', isApproved: true, signoff: 'Approved by State Admin' },
           { title: 'Industry Collaboration Acceptance', status: 'Completed', isApproved: true, signoff: `Accepted by ${partnerName}` },
           { title: 'Working Prototype Rig Preparation', status: 'In Progress', isApproved: false, signoff: 'In Progress' }
         ],
-        prototypeData: { efficiency: '96.2%', switchover: '< 10 ms', temp: '35°C', trl: 'TRL-4 / 5' },
-        pilotDetails: {
-          location: `${dist} — ${domainInfo.pilotLocation}`,
-          startDate: '01 Sep 2025',
-          duration: '30 days',
-          environment: domainInfo.pilotEnv,
-          objectives: domainInfo.objectives
-        },
-        telemetry: { power: '4.8 kW', battery: '88%', load: '3.2 kW', temp: '34 °C' },
-        updates: [
-          { date: '13 Sep 2025', text: 'Proposal accepted by industry; tripartite project agreement generated.' }
-        ],
-        fieldPhotos: [
-          { url: '', title: 'Pilot Site' },
-          { url: '', title: 'Testing' }
-        ],
-        documents: [
-          { name: 'Tripartite_Proposal_Agreement.pdf', type: 'MoU' }
-        ],
-        impact: {
-          metric1: { label: 'Direct Impact', value: '8,500 Citizens', note: 'Projected' },
-          metric2: { label: 'Resource Efficiency', value: '+35%', note: 'Lab benchmark' },
-          metric3: { label: 'ROI Feasibility', value: '94%', note: 'AI Feasibility Index' }
-        }
+        prototypeData: null,
+        pilotDetails: null,
+        telemetry: null,
+        updates: [],
+        fieldPhotos: [],
+        impact: null
       });
     }
 

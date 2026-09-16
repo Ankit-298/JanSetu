@@ -167,7 +167,8 @@ const STAGES = ['Assigned', 'In Progress', 'Prototype', 'Submitted', 'Deployed']
 export default function MyProjects() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Overview');
-  const [projects, setProjects] = useState(defaultProjects);
+  const [projects, setProjects] = useState([]);
+  const [lifecycleData, setLifecycleData] = useState(null);
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -343,9 +344,7 @@ export default function MyProjects() {
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
-          const hasDeployed = data.some(p => p.stage === 'Deployed' || p.status === 'Deployed' || p.status === 'resolved');
-          const deployedFallback = defaultProjects.find(p => p.stage === 'Deployed');
-          const finalData = hasDeployed ? data : (deployedFallback ? [...data, deployedFallback] : data);
+          const finalData = data;
           setProjects(prev => {
             const currentSelectedId = targetProjectId || prev.find(p => p.selected)?._id || prev.find(p => p.selected)?.id;
             const hasMatch = currentSelectedId && finalData.some(p => String(p._id || p.id) === String(currentSelectedId));
@@ -378,16 +377,38 @@ export default function MyProjects() {
   const selectedProject = projects.find(p => p.selected) || projects[0] || {};
   const currentProjectId = selectedProject._id || selectedProject.id;
 
+  useEffect(() => {
+    if (!currentProjectId || !/^[a-f0-9]{24}$/i.test(String(currentProjectId))) {
+      setLifecycleData(null);
+      return;
+    }
+    const token = sessionStorage.getItem('token') || sessionStorage.getItem('is_token') || '';
+    fetch(`/api/projects/${currentProjectId}/lifecycle`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(response => response.json())
+      .then(data => setLifecycleData(data.success ? data : null))
+      .catch(() => setLifecycleData(null));
+  }, [currentProjectId]);
+
+  const reviewCommitment = async (commitmentId, status) => {
+    const token = sessionStorage.getItem('token') || sessionStorage.getItem('is_token') || '';
+    const response = await fetch(`/api/university/projects/${currentProjectId}/commitments/${commitmentId}/verify`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ status, verificationComment: status === 'Verified' ? 'Delivery reviewed and verified by university.' : 'Delivery requires correction or additional proof.' })
+    });
+    const data = await response.json();
+    if (data.success) {
+      setLifecycleData(prev => prev ? { ...prev, commitments: prev.commitments.map(item => item._id === commitmentId ? data.commitment : item) } : prev);
+    }
+  };
+
   // Sync discussion forum with selectedProject
   useEffect(() => {
     if (selectedProject) {
       if (selectedProject.discussion && selectedProject.discussion.length > 0) {
         setDiscussionMessages(selectedProject.discussion);
       } else {
-        setDiscussionMessages([
-          { sender: 'Dr. Rohan Mehta', role: 'Faculty Mentor', text: 'Team, please review the architecture deliverable and verify telemetry latency before prototype review.', time: 'Yesterday, 4:15 PM', isMentor: true },
-          { sender: (selectedProject.team?.[0] || 'Team Lead'), role: 'Innovator', text: 'Yes Sir, we have optimized the telemetry interval and added local failover buffering.', time: 'Today, 10:30 AM', isMentor: false }
-        ]);
+        setDiscussionMessages([]);
       }
       const projectId = selectedProject._id || selectedProject.id;
       if (projectId) {
@@ -404,14 +425,7 @@ export default function MyProjects() {
   }, [selectedProject?._id, selectedProject?.id]);
 
   // Milestones list normalized
-  const milestonesList = selectedProject.milestones && selectedProject.milestones.length > 0
-    ? selectedProject.milestones
-    : [
-        { name: 'proposal', title: '1. Project Proposal & Architecture', status: selectedProject.stage === 'Assigned' ? 'pending' : 'approved', fileUrl: '/uploads/proposal.pdf' },
-        { name: 'prototype', title: '2. Working Prototype', status: selectedProject.stage === 'In Progress' ? 'pending_review' : (selectedProject.stage === 'Assigned' ? 'pending' : 'approved'), fileUrl: '/uploads/prototype.pdf' },
-        { name: 'report', title: '3. Final Report & Verification', status: selectedProject.stage === 'Prototype' ? 'pending' : (selectedProject.stage === 'Submitted' || selectedProject.stage === 'Deployed' ? 'approved' : 'missing') },
-        { name: 'video', title: '4. Demo Video & Deployment Plan', status: selectedProject.stage === 'Deployed' ? 'approved' : 'missing' }
-      ];
+  const milestonesList = selectedProject.milestones || [];
 
   // Proposal status & approval check
   const proposalStatus = selectedProject.proposalStatus || (activeProjectProposal?.status) || 'not_submitted';
@@ -1509,7 +1523,8 @@ export default function MyProjects() {
                   <div>
                     <h3 className="mp-card-title">Project Milestone Timeline</h3>
                     <div style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>
-                      Current Stage: <strong style={{ color: !isProposalApproved ? '#D97706' : '#2563EB' }}>{!isProposalApproved ? 'Locked: Proposal Approval Required' : currentStageName}</strong> (Step {stageIndex + 1} of 5)
+                      Current Stage: <strong style={{ color: !isProposalApproved ? '#D97706' : '#2563EB' }}>{!isProposalApproved ? 'Locked: Proposal Approval Required' : (lifecycleData?.project?.lifecycleState || currentStageName)}</strong>
+                      {lifecycleData?.project?.health && <span style={{ marginLeft: 8, color: lifecycleData.project.health.status === 'ON_TRACK' ? '#15803D' : '#B45309' }}>· {lifecycleData.project.health.status.replace('_', ' ')}</span>}
                     </div>
                   </div>
                   {!isProposalApproved ? (
@@ -1633,6 +1648,39 @@ export default function MyProjects() {
                   </div>
                 </div>
               </div>
+
+              {lifecycleData && (
+                <div className="mp-card" style={{ marginTop: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <h3 className="mp-card-title">Collaboration Lifecycle</h3>
+                      <div style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>
+                        {lifecycleData.commitments?.length || 0} commitments · {lifecycleData.workflow?.length || 0} workflow records
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: lifecycleData.project.health?.status === 'ON_TRACK' ? '#15803D' : '#B45309', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 7, padding: '6px 9px' }}>
+                      {lifecycleData.project.health?.status || 'No health data'}
+                    </span>
+                  </div>
+                  {lifecycleData.project.health?.reason && <div style={{ marginTop: 10, fontSize: 12, color: '#475569' }}>{lifecycleData.project.health.reason}</div>}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginTop: 14 }}>
+                    {(lifecycleData.commitments || []).slice(0, 4).map(commitment => (
+                      <div key={commitment._id} style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 10, background: '#F8FAFC' }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#0F172A' }}>{commitment.type}</div>
+                        <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>{commitment.description}</div>
+                        <div style={{ fontSize: 10.5, color: '#2563EB', fontWeight: 750, marginTop: 6 }}>{commitment.status}</div>
+                        {commitment.status === 'Under University Verification' && (
+                          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                            <button type="button" onClick={() => reviewCommitment(commitment._id, 'Verified')} style={{ border: 0, borderRadius: 6, padding: '5px 7px', background: '#15803D', color: '#fff', fontSize: 10, fontWeight: 800 }}>Verify</button>
+                            <button type="button" onClick={() => reviewCommitment(commitment._id, 'Rejected')} style={{ border: 0, borderRadius: 6, padding: '5px 7px', background: '#FEF2F2', color: '#B91C1C', fontSize: 10, fontWeight: 800 }}>Reject</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {!lifecycleData.commitments?.length && <div style={{ marginTop: 14, fontSize: 12, color: '#64748B' }}>No commitments available.</div>}
+                </div>
+              )}
 
               {/* Milestone Submission & Mentor Review Gate */}
               <div className="mp-card" style={{ padding: '20px 24px' }}>

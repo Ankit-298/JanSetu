@@ -382,15 +382,18 @@ const INITIAL_COMMITMENT_PROJECTS = [
 function mapCollaborationToCommitmentProject(collaboration, fallbackProject) {
   const commitments = Array.isArray(collaboration.commitments) && collaboration.commitments.length > 0
     ? collaboration.commitments.map((item, index) => ({
-        id: `${collaboration._id || collaboration.id}-commitment-${index}`,
+        id: item._id || item.commitmentId || `${collaboration._id || collaboration.id}-commitment-${index}`,
         type: item.type || 'Support',
-        requirement: item.detail || item.amount || 'Project support requirement',
-        commitment: item.amount || item.detail || 'CSR support allocation',
-        status: item.status === 'Active on Site' || item.status === 'Assigned' ? 'Provided' : (item.status === 'Committed' ? 'Pending' : (item.status || 'Pending')),
-        date: collaboration.targetDate || '30 Sep 2026',
-        actionType: item.status === 'Provided' || item.status === 'Active on Site' ? 'details' : 'dispatch'
+        requirement: item.description || item.detail || item.amount || 'Project support requirement',
+        commitment: item.amount || item.quantity || item.description || 'Project support allocation',
+        status: item.status || 'Committed',
+        date: item.dueDate || '—',
+        actionType: ['Under University Verification', 'Verified'].includes(item.status) ? 'details' : 'dispatch',
+        commitmentId: item.commitmentId || item._id,
+        linkedMilestoneId: item.linkedMilestoneId,
+        proofDocuments: item.proofDocuments || []
       }))
-    : (fallbackProject?.commitments || []);
+    : [];
 
   const progress = Number(collaboration.progress || fallbackProject?.supportProgress || 0);
   const status = collaboration.statusBadge || collaboration.stage || fallbackProject?.status || 'In Progress';
@@ -415,17 +418,20 @@ function mapCollaborationToCommitmentProject(collaboration, fallbackProject) {
     summary: collaboration.description || fallbackProject?.summary || 'Collaborative engineering deployment addressing a verified civic challenge.',
     approvedBudget: collaboration.fundingFormatted || fallbackProject?.approvedBudget || 'Not published',
     stage: collaboration.stage || fallbackProject?.stage || 'Industry Support',
+    lifecycleState: collaboration.lifecycleState || 'APPROVED',
+    health: collaboration.health || { status: 'ON_TRACK', reason: 'No health data available.' },
     ourRole: collaboration.ourRole || fallbackProject?.ourRole || 'CSR Funding + Technical Mentorship',
     supportProgress: Math.max(0, Math.min(100, progress)),
     commitments,
-    nextMilestone: fallbackProject?.nextMilestone || { id: `milestone-${collaboration._id}`, title: 'Review next project milestone', dueDate: '30 Sep 2026', completed: false },
+    nextMilestone: fallbackProject?.nextMilestone || null,
     counts: {
       committed: commitments.length,
-      provided: commitments.filter(item => item.status === 'Provided' || item.status === 'Verified').length,
+      provided: commitments.filter(item => ['Delivered', 'Under University Verification', 'Verified'].includes(item.status)).length,
       verified: commitments.filter(item => item.status === 'Verified').length,
-      pending: commitments.filter(item => item.status === 'Pending').length
+      pending: commitments.filter(item => ['Committed', 'In Progress', 'Overdue'].includes(item.status)).length
     },
     documents: collaboration.documents || fallbackProject?.documents || [],
+    workflow: collaboration.workflow || [],
     communication: fallbackProject?.communication || [],
     timeline: fallbackProject?.timeline || [],
     sla: fallbackProject?.sla || { score: 'Live tracking', onTimeDelivery: 'Pending', avgResponseTime: 'Pending', escrowStatus: 'See collaboration record', escalationLead: collaboration.facultyLead || 'University PI' },
@@ -457,17 +463,8 @@ function App() {
   const [expSort, setExpSort] = React.useState('match');
 
   // ── Support Commitments Interactive State ──
-  const [commitmentProjects, setCommitmentProjects] = React.useState(() => {
-    try {
-      const saved = localStorage.getItem('jansetu_commitments_projects');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {}
-    return INITIAL_COMMITMENT_PROJECTS;
-  });
-  const [selectedCommitmentId, setSelectedCommitmentId] = React.useState('solar-phc');
+  const [commitmentProjects, setCommitmentProjects] = React.useState([]);
+  const [selectedCommitmentId, setSelectedCommitmentId] = React.useState('');
   const [commitmentsTabFilter, setCommitmentsTabFilter] = React.useState('active');
   const [commitmentsSearchQuery, setCommitmentsSearchQuery] = React.useState('');
   const [commitmentsSubTab, setCommitmentsSubTab] = React.useState('overview');
@@ -478,12 +475,12 @@ function App() {
   const [chatMessageText, setChatMessageText] = React.useState('');
   const [showAddCommitmentModal, setShowAddCommitmentModal] = React.useState(false);
   const [newCommitmentForm, setNewCommitmentForm] = React.useState({
-    projectId: 'solar-phc',
+    projectId: '',
     type: 'Equipment',
-    amountLakh: '2.5',
-    title: '5 LiFePO4 battery packs 48V 100Ah',
-    desc: 'Supply, warranty and field installation support for the remaining PHC battery storage capacity.',
-    targetDate: '2026-10-15'
+    amountLakh: '',
+    title: '',
+    desc: '',
+    targetDate: ''
   });
 
   React.useEffect(() => {
@@ -611,7 +608,7 @@ function App() {
 
         let coverImg = c.coverImage || c.image || (c.attachments && c.attachments[0] && c.attachments[0].url);
         const textToSearch = `${c.title || ''} ${c.description || ''} ${c.category || ''}`.toLowerCase();
-        if (!coverImg || coverImg.includes('solar-hospital.jpg')) {
+        if (!coverImg || coverImg.includes('campus-iit.jpg')) {
           if (textToSearch.includes('water') || textToSearch.includes('paani') || textToSearch.includes('pipeline') || textToSearch.includes('pipe') || textToSearch.includes('borehole') || textToSearch.includes('handpump') || textToSearch.includes('peyal') || textToSearch.includes('पेयजल')) {
             coverImg = '/images/water-monitoring.jpg';
           } else if (textToSearch.includes('fasal') || textToSearch.includes('bimari') || textToSearch.includes('crop') || textToSearch.includes('kisan') || textToSearch.includes('agri')) {
@@ -623,7 +620,7 @@ function App() {
           } else if (textToSearch.includes('school') || textToSearch.includes('education') || textToSearch.includes('shiksha') || textToSearch.includes('student')) {
             coverImg = '/images/digital-learning.jpg';
           } else if (textToSearch.includes('health') || textToSearch.includes('hospital') || textToSearch.includes('solar') || textToSearch.includes('phc')) {
-            coverImg = '/images/solar-hospital.jpg';
+            coverImg = '/images/campus-iit.jpg';
           } else {
             coverImg = '/images/campus-iit.jpg';
           }
@@ -693,13 +690,10 @@ function App() {
   React.useEffect(() => {
     if (!collabsList.length) return;
 
-    setCommitmentProjects(previous => {
-      const mapped = collabsList.map(collaboration => {
-        const fallback = previous.find(project => project.title === collaboration.title) ||
-          INITIAL_COMMITMENT_PROJECTS.find(project => project.title === collaboration.title);
-        return mapCollaborationToCommitmentProject(collaboration, fallback);
-      });
-      return mapped.length ? mapped : previous;
+    setCommitmentProjects(() => {
+      const mapped = collabsList.map(collaboration => mapCollaborationToCommitmentProject(collaboration, null));
+      if (!selectedCommitmentId && mapped[0]) setSelectedCommitmentId(mapped[0].id);
+      return mapped;
     });
     setCommitmentsLive(true);
     setCommitmentsLastSynced(new Date());
@@ -1701,12 +1695,6 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
   }, [activeSection]);
 
   // ── Support Commitments Computed Metrics & Handlers ──
-  React.useEffect(() => {
-    try {
-      localStorage.setItem('jansetu_commitments_projects', JSON.stringify(commitmentProjects));
-    } catch (e) {}
-  }, [commitmentProjects]);
-
   // Window global bridge
   useEffect(() => {
     window.selectCommitmentProject = (id) => {
@@ -1745,7 +1733,9 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
     };
   }, []);
 
-  const selectedProj = commitmentProjects.find(p => p.id === selectedCommitmentId) || commitmentProjects[0];
+  const selectedProj = commitmentProjects.find(p => p.id === selectedCommitmentId)
+    || commitmentProjects[0]
+    || INITIAL_COMMITMENT_PROJECTS[0];
 
   React.useEffect(() => {
     if (!selectedProj?.backendId) return;
@@ -1767,14 +1757,14 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
       if (match) {
         return sub + parseInt(match[1].replace(/,/g, ''), 10);
       }
-      return sub + 150000;
+      return sub;
     }, 0);
   }, 0);
 
   const totalCommitmentLakhStr = `₹${(totalCommitmentValue / 100000).toFixed(1)} Lakh`;
-  const totalPendingCount = commitmentProjects.reduce((acc, p) => acc + (p.commitments ? p.commitments.filter(c => c.status === 'Pending').length : 0), 0);
+  const totalPendingCount = commitmentProjects.reduce((acc, p) => acc + (p.commitments ? p.commitments.filter(c => ['Committed', 'In Progress', 'Overdue'].includes(c.status)).length : 0), 0);
   const totalInProgressCount = commitmentProjects.reduce((acc, p) => acc + (p.commitments ? p.commitments.filter(c => c.status === 'In Progress').length : 0), 0);
-  const totalVerifiedCount = commitmentProjects.reduce((acc, p) => acc + (p.commitments ? p.commitments.filter(c => c.status === 'Verified' || c.status === 'Provided').length : 0), 0);
+  const totalVerifiedCount = commitmentProjects.reduce((acc, p) => acc + (p.commitments ? p.commitments.filter(c => c.status === 'Verified').length : 0), 0);
 
   const filteredCommitmentProjects = commitmentProjects.filter(p => {
     if (commitmentsSearchQuery.trim()) {
@@ -1790,13 +1780,13 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
       return p.status === 'In Progress' || p.status === 'On Track' || p.status === 'Delayed';
     }
     if (commitmentsTabFilter === 'pending') {
-      return (p.commitments || []).some(c => c.status === 'Pending');
+      return (p.commitments || []).some(c => ['Committed', 'In Progress', 'Overdue'].includes(c.status));
     }
     if (commitmentsTabFilter === 'in_progress') {
       return p.status === 'In Progress' || (p.commitments || []).some(c => c.status === 'In Progress');
     }
     if (commitmentsTabFilter === 'verified') {
-      return p.status === 'Verified' || (p.commitments || []).every(c => c.status === 'Verified' || c.status === 'Provided');
+      return p.status === 'Verified' || (p.commitments || []).length > 0 && (p.commitments || []).every(c => c.status === 'Verified');
     }
     return true;
   });
@@ -1824,85 +1814,44 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
     window.toastSuccess && window.toastSuccess('Next Milestone progress updated!', 'Milestone Updated');
   };
 
-  const handleDispatchCommitment = (projId, commitId) => {
-    setCommitmentProjects(prev => prev.map(p => {
-      if (p.id !== projId) return p;
-      const updatedCommits = p.commitments.map(c => {
-        if (c.id !== commitId) return c;
-        return {
-          ...c,
-          status: 'In Progress',
-          trackingId: `TRK-JH-${Math.floor(1000 + Math.random() * 9000)}`,
-          courier: 'Ranchi Express Logistics',
-          actionType: 'track'
-        };
-      });
-      const pendingCnt = updatedCommits.filter(c => c.status === 'Pending').length;
-      const inProgCnt = updatedCommits.filter(c => c.status === 'In Progress').length;
-      const providedCnt = updatedCommits.filter(c => c.status === 'Provided').length;
-      const verifiedCnt = updatedCommits.filter(c => c.status === 'Verified').length;
-      const targetCommit = p.commitments.find(c => c.id === commitId);
-      const newActivity = [
-        {
-          date: 'Just now',
-          text: `Dispatched: ${targetCommit ? targetCommit.commitment : 'Equipment deliverable'} via Ranchi Express.`,
-          color: '#2563eb'
-        },
-        ...p.recentActivity
-      ];
-      return {
-        ...p,
-        commitments: updatedCommits,
-        counts: { ...p.counts, pending: pendingCnt, inProgress: inProgCnt, provided: providedCnt, verified: verifiedCnt },
-        supportProgress: Math.min(100, p.supportProgress + 10),
-        recentActivity: newActivity
-      };
-    }));
-    window.toastSuccess && window.toastSuccess('Commitment marked as Dispatched & In-Transit!', 'Logistics Dispatched');
+  const handleDispatchCommitment = async (projId, commitId) => {
+    const project = commitmentProjects.find(item => item.id === projId);
+    const token = sessionStorage.getItem('token') || sessionStorage.getItem('is_token') || '';
+    if (!project?.backendId || !commitId) return;
+    const response = await fetch(`/api/industry/projects/${project.backendId}/commitments/${commitId}/deliver`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ proofDocuments: [] })
+    });
+    const data = await response.json();
+    if (!data.success) return window.toastSuccess && window.toastSuccess(data.error || 'Delivery update failed.', 'Unable to update');
+    await fetchCollaborations();
+    window.toastSuccess && window.toastSuccess('Commitment marked as delivered for university verification.', 'Delivery Submitted');
   };
 
-  const handleAddCommitmentSubmit = (e) => {
+  const handleAddCommitmentSubmit = async (e) => {
     e.preventDefault();
     const targetProjId = newCommitmentForm.projectId || selectedCommitmentId;
-    const newCommit = {
-      id: 'c_' + Date.now(),
-      type: newCommitmentForm.type,
-      requirement: newCommitmentForm.title || 'Project Specific Support',
-      commitment: `${newCommitmentForm.title || 'CSR Allocated Deliverable'}${newCommitmentForm.amountLakh ? ` (₹${newCommitmentForm.amountLakh} Lakh)` : ''}`,
-      status: 'Pending',
-      date: newCommitmentForm.targetDate || '2026-10-30',
-      detail: newCommitmentForm.desc || 'CSR support deliverable registered for the project.',
-      actionType: 'dispatch'
-    };
-
-    setCommitmentProjects(prev => prev.map(p => {
-      if (p.id !== targetProjId) return p;
-      const updatedCommits = [...p.commitments, newCommit];
-      const pendingCnt = updatedCommits.filter(c => c.status === 'Pending').length;
-      const newActivity = [
-        {
-          date: 'Today',
-          text: `Added new commitment: ${newCommit.commitment} (${newCommit.type})`,
-          color: '#2563eb'
-        },
-        ...p.recentActivity
-      ];
-      return {
-        ...p,
-        commitments: updatedCommits,
-        counts: { ...p.counts, committed: updatedCommits.length, pending: pendingCnt },
-        recentActivity: newActivity
-      };
-    }));
+    const project = commitmentProjects.find(item => item.id === targetProjId);
+    const token = sessionStorage.getItem('token') || sessionStorage.getItem('is_token') || '';
+    if (!project?.backendId) return window.toastSuccess && window.toastSuccess('Select an accepted database project first.', 'No Project Selected');
+    const response = await fetch(`/api/industry/projects/${project.backendId}/commitments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ type: newCommitmentForm.type, description: newCommitmentForm.desc || newCommitmentForm.title, amount: newCommitmentForm.amountLakh ? Number(newCommitmentForm.amountLakh) * 100000 : undefined, dueDate: newCommitmentForm.targetDate })
+    });
+    const data = await response.json();
+    if (!data.success) return window.toastSuccess && window.toastSuccess(data.error || 'Commitment could not be saved.', 'Unable to add commitment');
+    await fetchCollaborations();
 
     setShowAddCommitmentModal(false);
     setNewCommitmentForm({
       projectId: targetProjId,
       type: 'Equipment',
-      amountLakh: '2.5',
-      title: '5 LiFePO4 battery packs 48V 100Ah',
-      desc: 'Supply, warranty and field installation support for the remaining PHC battery storage capacity.',
-      targetDate: '2026-10-15'
+      amountLakh: '',
+      title: '',
+      desc: '',
+      targetDate: ''
     });
     window.toastSuccess && window.toastSuccess('New CSR Commitment successfully registered and synchronized with State Registry!', 'Commitment Added');
   };
@@ -3003,7 +2952,7 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
                           <div id="wsProtoDevBy" style={{ fontSize: '12px', color: '#64748b' }}>Developed by IIT (ISM) Dhanbad Department of Electrical Engineering</div>
                         </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button className="btn btn-sm btn-outline-primary" onClick={() => window.openImageLightbox && window.openImageLightbox('/images/solar-hospital.jpg', 'Solar Unit Prototype Rig', 'IIT (ISM) Dhanbad Laboratory Bench Test')}>
+                          <button className="btn btn-sm btn-outline-primary" onClick={() => window.openImageLightbox && window.openImageLightbox('/images/campus-iit.jpg', 'Solar Unit Prototype Rig', 'IIT (ISM) Dhanbad Laboratory Bench Test')}>
                             🔍 Inspect Prototype Rig
                           </button>
                           <button className="btn btn-sm btn-primary" onClick={() => window.approvePrototypeReadiness && window.approvePrototypeReadiness()}>
@@ -3014,7 +2963,7 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
 
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', alignItems: 'start' }}>
                         <div>
-                          <img id="wsProtoRigImg" src="/images/solar-hospital.jpg" alt="Prototype Rig" style={{ width: '100%', height: '190px', objectFit: 'cover', borderRadius: '12px', border: '1px solid #cbd5e1' }} onError={(e) => { e.target.src = '/images/solar-hospital.jpg'; }} />
+                          <img id="wsProtoRigImg" src="/images/campus-iit.jpg" alt="Prototype Rig" style={{ width: '100%', height: '190px', objectFit: 'cover', borderRadius: '12px', border: '1px solid #cbd5e1' }} onError={(e) => { e.target.src = '/images/campus-iit.jpg'; }} />
                           <div style={{ fontSize: '11.5px', color: '#64748b', textAlign: 'center', marginTop: '6px' }}>Bench Simulation Rig v2.1 (Tested at 45°C ambient)</div>
                         </div>
 
@@ -3153,7 +3102,7 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
                       
                       {/* Photo Thumbnail */}
                       <div className="collab-hero-thumb" style={{ position: 'relative', width: '130px', height: '110px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1', flexShrink: 0 }}>
-                        <img id="protoHeroThumb" src="/images/solar-hospital.jpg" alt="Rural Hospital Solar Unit" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/solar-hospital.jpg'; }} />
+                        <img id="protoHeroThumb" src="/images/campus-iit.jpg" alt="Rural Hospital Solar Unit" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/campus-iit.jpg'; }} />
                       </div>
 
                       {/* Title & Description & Tags */}
@@ -3378,13 +3327,13 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
                               <div style={{ fontSize: '14px', fontWeight: '850', color: '#0f172a' }}>
                                 Field Photos / Videos
                               </div>
-                              <button type="button" onClick={() => window.openImageLightbox && window.openImageLightbox('/images/solar-hospital.jpg', 'Dhanbad District Hospital Solar Microgrid', 'BIS Tier-1 Certified PV System')} style={{ border: 'none', background: 'transparent', color: '#2563eb', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>
+                              <button type="button" onClick={() => window.openImageLightbox && window.openImageLightbox('/images/campus-iit.jpg', 'Dhanbad District Hospital Solar Microgrid', 'BIS Tier-1 Certified PV System')} style={{ border: 'none', background: 'transparent', color: '#2563eb', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>
                                 View All
                               </button>
                             </div>
                             <div id="protoFieldPhotosGrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                              <div onClick={() => window.openImageLightbox && window.openImageLightbox('/images/solar-hospital.jpg', 'Solar PV Rooftop Array', 'Dhanbad District Hospital')} style={{ position: 'relative', height: '80px', borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', border: '1px solid #cbd5e1' }}>
-                                <img src="/images/solar-hospital.jpg" alt="Solar Arrays" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/solar-hospital.jpg'; }} />
+                              <div onClick={() => window.openImageLightbox && window.openImageLightbox('/images/campus-iit.jpg', 'Solar PV Rooftop Array', 'Dhanbad District Hospital')} style={{ position: 'relative', height: '80px', borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', border: '1px solid #cbd5e1' }}>
+                                <img src="/images/campus-iit.jpg" alt="Solar Arrays" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/campus-iit.jpg'; }} />
                                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontSize: '16px' }}>▶</div>
                               </div>
                               <div onClick={() => window.openImageLightbox && window.openImageLightbox('/images/agri-monitoring.jpg', 'Inverter Synchronizer & Switchgear Panel', 'TRL-5 Verified Circuitry')} style={{ position: 'relative', height: '80px', borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', border: '1px solid #cbd5e1' }}>
@@ -3679,7 +3628,7 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
                   </div>
                   <div className="support-sync-row">
                     <span className={`support-sync-status ${commitmentsLive ? 'is-live' : ''}`}>
-                      <span className="support-sync-dot"></span>{commitmentsLive ? 'Live project data' : 'Demo workspace'}
+                      <span className="support-sync-dot"></span>{commitmentsLive ? 'Live project data' : 'No data available'}
                     </span>
                     <button type="button" className="support-refresh-btn" onClick={() => fetchCollaborations()} disabled={loadingCollabs}>
                       {loadingCollabs ? 'Syncing...' : 'Refresh data'}
@@ -3783,7 +3732,7 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
                       return (
                         <div key={proj.id} className={`support-proj-card ${isAct ? 'active' : ''}`} onClick={() => setSelectedCommitmentId(proj.id)} style={{ cursor: 'pointer' }}>
                           <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '10px' }}>
-                            <img src={proj.image} alt={proj.title} style={{ width: '88px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/solar-hospital.jpg'; }} />
+                            <img src={proj.image} alt={proj.title} style={{ width: '88px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/campus-iit.jpg'; }} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
                                 <h4 style={{ margin: 0, fontSize: '14.5px', fontWeight: '850', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{proj.title}</h4>
@@ -3821,7 +3770,7 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
                   {/* Selected Project Header */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '14px', borderBottom: '1.5px solid #e2e8f0', flexWrap: 'wrap', gap: '12px' }}>
                     <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                      <img id="commitDetailThumb" src={selectedProj.image} alt={selectedProj.title} style={{ width: '64px', height: '50px', borderRadius: '8px', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/solar-hospital.jpg'; }} />
+                      <img id="commitDetailThumb" src={selectedProj.image} alt={selectedProj.title} style={{ width: '64px', height: '50px', borderRadius: '8px', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/campus-iit.jpg'; }} />
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <h3 id="commitDetailTitle" style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{selectedProj.title}</h3>

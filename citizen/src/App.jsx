@@ -933,7 +933,7 @@ function App() {
             
             {/* AI Auto-Selected Category Notice */}
             <div id="aiCategoryAutoBanner" style={{"display":"none","background":"#F0FDF4","border":"1.5px solid #86EFAC","borderRadius":"10px","padding":"8px 12px","fontSize":"11.5px","color":"#15803D","fontWeight":"700","marginBottom":"10px"}}>
-              🤖 Category auto-selected by Groq AI based on your uploaded photo. You can click any category below to adjust.
+              🤖 Category auto-selected by JanSetu AI based on your uploaded photo. You can click any category below to adjust.
             </div>
 
             <div className="category-chips-grid" id="categoryChipsContainer">
@@ -973,7 +973,7 @@ function App() {
 
           {/* AI Pre-fill Status Pill */}
           <div id="aiPrefillNoticePill" style={{"display":"none","background":"#EFF6FF","border":"1px solid #BFDBFE","borderRadius":"8px","padding":"6px 12px","fontSize":"11.5px","color":"#1E40AF","fontWeight":"700","marginTop":"12px"}}>
-            ✨ Title &amp; Description pre-filled by Groq AI from uploaded photo. You can edit any details below.
+            ✨ Title &amp; Description pre-filled by JanSetu AI from uploaded photo. You can edit any details below.
           </div>
 
           <div className="form-group-field" style={{"marginTop":"14px"}}>

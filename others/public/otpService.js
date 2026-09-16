@@ -20,7 +20,8 @@ function generateRandomOtp() {
  */
 function getEmailTransporter() {
   try {
-    require('dotenv').config({ path: path.join(__dirname, '../../.env'), override: true });
+    // Keep Render-provided variables authoritative; dotenv only fills local gaps.
+    require('dotenv').config({ path: path.join(__dirname, '../../.env') });
   } catch (e) {}
 
   const user = process.env.EMAIL_USER ? process.env.EMAIL_USER.trim() : '';
@@ -30,11 +31,21 @@ function getEmailTransporter() {
     return null;
   }
 
+  const port = Number(process.env.SMTP_PORT || 465);
+  const secure = process.env.SMTP_SECURE
+    ? process.env.SMTP_SECURE === 'true'
+    : port === 465;
+
   return nodemailer.createTransport({
-    service: 'gmail',
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    ...(process.env.SMTP_SERVICE ? { service: process.env.SMTP_SERVICE } : {}),
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port,
+    secure,
+    pool: true,
+    maxConnections: 2,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
     auth: {
       user: user,
       pass: pass
@@ -587,7 +598,7 @@ async function sendOtpEmail(recipientEmail, otpCode, userName = 'Citizen', purpo
     console.error(`❌ [JanSetu Nodemailer] Error sending to ${recipientEmail}:`, err.message);
     const isBadCreds = err.message.includes('BadCredentials') || err.message.includes('Username and Password not accepted');
     return {
-      success: true,
+      success: false,
       delivered: false,
       error: isBadCreds
         ? 'Google App Password required: Please generate a 16-character App Password at myaccount.google.com/apppasswords instead of regular Gmail password.'

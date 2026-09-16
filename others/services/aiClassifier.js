@@ -394,7 +394,17 @@ function computeSemanticOverlap(textA = '', textB = '') {
   score += Math.min(12, Math.round(jaccard * 25));
 
   return Math.min(45, score);
-}
+  }
+
+const hasSharedCivicTopic = (textA = '', textB = '') => {
+  const a = textA.toLowerCase();
+  const b = textB.toLowerCase();
+  return Object.values(CIVIC_TOPIC_CLUSTERS).some(words => {
+    const inA = words.some(word => a.includes(word));
+    const inB = words.some(word => b.includes(word));
+    return inA && inB;
+  });
+};
 
 /**
  * Duplicate Problem Detection with strict 70+ Score Threshold
@@ -474,8 +484,14 @@ const findSimilarChallenges = (newReport, candidateList = []) => {
       }
     }
 
-    // GATEKEEPER 2: Title must also be relevant (score >= 15)
-    if (titleScore < 15) {
+    const sameLocalArea = Boolean(
+      (newVillage && candVillage && newVillage === candVillage)
+      || (newBlock && candBlock && newBlock === candBlock)
+      || (newDist && candDist && (newDist === candDist || newDist.includes(candDist) || candDist.includes(newDist)))
+    );
+
+    // Image structuring may rewrite the title. Keep a strong same-area/topic match eligible.
+    if (titleScore < 15 && !(sameLocalArea && descScore >= 35 && hasSharedCivicTopic(`${newTitle} ${newDesc}`, `${candTitle} ${candDesc}`))) {
       continue;
     }
 
@@ -485,6 +501,7 @@ const findSimilarChallenges = (newReport, candidateList = []) => {
       if (newCat === candCat || newCat.includes(candCat) || candCat.includes(newCat)) {
         catScore = 10;
       }
+      if (!catScore && hasSharedCivicTopic(newCat, candCat)) catScore = 6;
     }
 
     // 4. Location Proximity (up to 10 points)

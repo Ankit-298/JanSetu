@@ -1757,7 +1757,7 @@ export default function BrowseProblems() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [collabOnly, setCollabOnly] = useState(false);
   const [forkOnly, setForkOnly] = useState(false);
-  const [assignedOnly, setAssignedOnly] = useState(false);
+  const assignedOnly = true;
   const [viewMode, setViewMode] = useState('grid');
   const [sortBy, setSortBy] = useState('Latest');
   const [twinModal, setTwinModal] = useState(null);
@@ -1870,7 +1870,6 @@ export default function BrowseProblems() {
     setActiveCategory('All');
     setCollabOnly(false);
     setForkOnly(false);
-    setAssignedOnly(false);
   };
 
   const filtered = useMemo(() => {
@@ -2043,12 +2042,13 @@ export default function BrowseProblems() {
         <div className="bp-filter-row2" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <label
             className="bp-collab-toggle"
-            onClick={() => setAssignedOnly(!assignedOnly)}
             style={{
               background: assignedOnly ? '#EFF6FF' : '#FFFFFF',
               border: assignedOnly ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
-              padding: '6px 14px', borderRadius: 8, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8
+              padding: '6px 14px', borderRadius: 8, cursor: 'default', display: 'inline-flex', alignItems: 'center', gap: 8
             }}
+            aria-pressed="true"
+            aria-disabled="true"
           >
             <div className="bp-toggle-track" data-active={assignedOnly}>
               <div className="bp-toggle-thumb" />
