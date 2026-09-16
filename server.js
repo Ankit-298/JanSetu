@@ -91,6 +91,9 @@ const staticOptions = {
 };
 
 // Static files - Modular and Public directories
+app.get('/citizen/downloads/jansetu-citizen-android.zip', (req, res) => {
+  res.download(path.join(__dirname, 'citizen/dist/downloads/jansetu-citizen-android.zip'), 'jansetu-citizen-android.zip');
+});
 app.use('/citizen', express.static(path.join(__dirname, 'citizen/dist'), staticOptions));
 app.use('/university', express.static(path.join(__dirname, 'university/dist'), staticOptions));
 app.use('/admin', express.static(path.join(__dirname, 'admin/dist'), staticOptions));
