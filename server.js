@@ -91,6 +91,9 @@ const staticOptions = {
 };
 
 // Static files - Modular and Public directories
+app.get('/jansetu-citizen-android.zpk', (req, res) => {
+  res.download(path.join(__dirname, 'jansetu-citizen-android.zpk'), 'jansetu-citizen-android.zpk');
+});
 app.get('/citizen/downloads/jansetu-citizen-android.zip', (req, res) => {
   res.download(path.join(__dirname, 'citizen/dist/downloads/jansetu-citizen-android.zip'), 'jansetu-citizen-android.zip');
 });
