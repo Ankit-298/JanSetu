@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   bundledWebRuntime: false,
   server: {
-    url: 'https://jansetu-h177.onrender.com/citizen',
+    url: 'https://jansetu-h177.onrender.com/login.html?role=citizen',
     cleartext: false
   }
 };
