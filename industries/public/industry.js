@@ -445,7 +445,7 @@ window.loadCollaborationsData = async function(targetId = null) {
         
         <!-- Real Domain Cover Image Banner -->
         <div style="position: relative; height: 145px; width: 100%; background: #f1f5f9; overflow: hidden;">
-          <img src="${thumb}" alt="${c.title}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onerror="this.src='/images/agri-monitoring.jpg'" />
+          <img src="${thumb}" alt="${c.title}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onerror="this.onerror=null;this.src='/images/agri-monitoring.jpg'" />
           <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15,23,42,0.15) 0%, rgba(15,23,42,0.72) 100%);"></div>
           
           <div style="position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center;">

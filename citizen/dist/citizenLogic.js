@@ -2276,7 +2276,7 @@
               return `
               <div class="report-square-card" onclick="openDetailModal('${r.id}')" title="${safeTitle}">
                 <div class="square-thumb-wrapper">
-                  <img src="${r.image || getCategoryFallbackImage(r.category)}" class="square-thumb-img" alt="${safeTitle}" onerror="this.src='/images/water-tap.jpg'" />
+                  <img src="${r.image || getCategoryFallbackImage(r.category)}" class="square-thumb-img" alt="${safeTitle}" onerror="this.onerror=null;this.src='/images/water-tap.jpg'" />
                   <span class="square-status-badge ${getStatusClass(r.status)}">${r.status}</span>
                   ${isTwin ? `<span style="position:absolute; bottom:6px; left:6px; background:#FEF3C7; color:#B45309; border:1px solid #FCD34D; font-size:9.5px; font-weight:800; border-radius:10px; padding:2px 7px; display:inline-flex; align-items:center; gap:3px; box-shadow:0 2px 5px rgba(0,0,0,0.12);">🔗 Twinned Problem</span>` : ''}
                 </div>
@@ -6056,7 +6056,7 @@ Return ONLY valid JSON:
         <div class="all-rep-card" onclick="openDetailModal('${r.id}')">
           <!-- Column 1: Thumbnail & Count Badge -->
           <div class="all-rep-card-thumb-wrap">
-            <img src="${thumbUrl}" class="all-rep-card-thumb" alt="${r.title || 'Report'}" onerror="this.src='/images/water-tap.jpg'" />
+            <img src="${thumbUrl}" class="all-rep-card-thumb" alt="${r.title || 'Report'}" onerror="this.onerror=null;this.src='/images/water-tap.jpg'" />
             <div class="all-rep-thumb-count-badge">
               <span>📷</span>
               <span>${imgCount}</span>
@@ -6823,7 +6823,7 @@ Return ONLY valid JSON:
           
           <!-- Real Grievance Thumbnail Photo (User Explicit Requirement: Images not Icons) -->
           <div class="channel-thumb-box" style="width: 44px; height: 44px; border-radius: 10px; overflow: hidden; flex-shrink: 0; border: 1.5px solid ${isActive ? '#2563EB' : '#E2E8F0'}; background: #F1F5F9; box-shadow: 0 2px 5px rgba(0,0,0,0.06); position: relative;">
-            <img src="${thumbImg}" alt="${escapeHtml(r.title || 'Thumbnail')}" style="width: 100%; height: 100%; object-fit: cover; display: block;" onerror="this.src='${fallbackImg}'; this.onerror=function(){this.src='/images/water-tap.jpg';};" />
+            <img src="${thumbImg}" alt="${escapeHtml(r.title || 'Thumbnail')}" style="width: 100%; height: 100%; object-fit: cover; display: block;" onerror="this.onerror=null;this.src='${fallbackImg}';" />
           </div>
 
           <div style="flex: 1; min-width: 0;">

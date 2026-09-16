@@ -2317,7 +2317,7 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
                           const progressVal = c.progress || 75;
                           return (
                             <div key={c._id} className="collab-item" onClick={() => window.openProjectWorkspace && window.openProjectWorkspace(c._id)} style={{ cursor: 'pointer' }}>
-                              <img src={thumb} alt={c.title} className="collab-thumb" onError={(e) => { e.target.src = '/images/agri-monitoring.jpg'; }} />
+                              <img src={thumb} alt={c.title} className="collab-thumb" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/images/agri-monitoring.jpg'; }} />
                               <div className="collab-content">
                                 <div className="collab-top">
                                   <span className="collab-title">{c.title}</span>
@@ -2761,7 +2761,7 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
                         
                         {/* Real Domain Cover Image Banner */}
                         <div style={{ position: 'relative', height: '145px', width: '100%', background: '#f1f5f9', overflow: 'hidden' }}>
-                          <img src={thumb} alt={c.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/agri-monitoring.jpg'; }} />
+                          <img src={thumb} alt={c.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/images/agri-monitoring.jpg'; }} />
                           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(15,23,42,0.15) 0%, rgba(15,23,42,0.72) 100%)' }}></div>
                           
                           <div style={{ position: 'absolute', top: '10px', left: '10px', right: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3388,10 +3388,10 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
                                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontSize: '16px' }}>▶</div>
                               </div>
                               <div onClick={() => window.openImageLightbox && window.openImageLightbox('/images/agri-monitoring.jpg', 'Inverter Synchronizer & Switchgear Panel', 'TRL-5 Verified Circuitry')} style={{ position: 'relative', height: '80px', borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', border: '1px solid #cbd5e1' }}>
-                                <img src="/images/agri-monitoring.jpg" alt="Control Panel" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/agri-monitoring.jpg'; }} />
+                                <img src="/images/agri-monitoring.jpg" alt="Control Panel" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/images/agri-monitoring.jpg'; }} />
                               </div>
                               <div onClick={() => window.openImageLightbox && window.openImageLightbox('/images/digital-learning.jpg', 'Medical-Grade LiFePO4 Battery Bank', '10x 100Ah 48V Storage')} style={{ position: 'relative', height: '80px', borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', border: '1px solid #cbd5e1' }}>
-                                <img src="/images/digital-learning.jpg" alt="Battery Rack" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/digital-learning.jpg'; }} />
+                                <img src="/images/digital-learning.jpg" alt="Battery Rack" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/images/digital-learning.jpg'; }} />
                                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontSize: '14px', fontWeight: '900' }}>+3</div>
                               </div>
                             </div>
@@ -4451,7 +4451,7 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
                               
                               {/* Real Domain Thumbnail */}
                               <div style={{ width: '160px', height: '120px', flexShrink: 0, borderRadius: '10px', overflow: 'hidden', border: '1px solid #cbd5e1', position: 'relative', background: '#f8fafc' }}>
-                                <img src={item.thumbnail} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/agri-monitoring.jpg'; }} />
+                                <img src={item.thumbnail} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/images/agri-monitoring.jpg'; }} />
                               </div>
 
                               {/* Middle Content */}
@@ -6106,7 +6106,7 @@ console.log('JanSetu Comprehensive Handlers & Real-Time Engine Loaded Successful
             {/* 1. Real Project Overview Hero Box */}
             <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'start' }}>
               <div style={{ width: '170px', height: '140px', borderRadius: '14px', overflow: 'hidden', border: '1px solid #cbd5e1', flexShrink: 0 }}>
-                <img id="wsModalCoverImage" src="/images/agri-monitoring.jpg" alt="Project Asset" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = '/images/campus-iit.jpg'; }} />
+                <img id="wsModalCoverImage" src="/images/agri-monitoring.jpg" alt="Project Asset" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/images/campus-iit.jpg'; }} />
               </div>
 
               <div style={{ flex: 1, minWidth: '260px' }}>

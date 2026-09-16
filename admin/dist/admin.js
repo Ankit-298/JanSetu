@@ -1827,7 +1827,7 @@ async function openChallengeAction(id) {
             <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:12px;margin-bottom:14px">
               ${displayPhotos.map((p, idx) => `
                 <div style="border-radius:12px;overflow:hidden;border:1.5px solid #CBD5E1;height:120px;position:relative;background:#E2E8F0;cursor:pointer;transition:transform 0.2s ease" onclick="window.open('${p.url}', '_blank')">
-                  <img src="${p.url}" style="width:100%;height:100%;object-fit:cover" alt="Citizen Photo ${idx + 1}" onerror="this.src='${fallbackPhoto}'" />
+                  <img src="${p.url}" style="width:100%;height:100%;object-fit:cover" alt="Citizen Photo ${idx + 1}" onerror="this.onerror=null;this.src='${fallbackPhoto}'" />
                   <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent, rgba(0,0,0,0.8));color:white;font-size:10px;padding:4px 8px;font-weight:750">
                     Photo ${idx + 1}
                   </div>

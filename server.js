@@ -97,6 +97,9 @@ app.use('/admin', express.static(path.join(__dirname, 'admin/dist'), staticOptio
 app.use('/industries', express.static(path.join(__dirname, 'industries/dist'), staticOptions));
 app.use('/industry', express.static(path.join(__dirname, 'industries/dist'), staticOptions));
 app.use('/others', express.static(path.join(__dirname, 'others/public'), staticOptions));
+app.get('/images/water-tap.jpg', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/images/evidence_thumb_water.png'));
+});
 app.use('/images', express.static(path.join(__dirname, 'public/images'), staticOptions));
 app.use(express.static(path.join(__dirname, 'others/public'), staticOptions));
 

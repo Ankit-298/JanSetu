@@ -92,7 +92,7 @@ function App() {
           alt="JanSetu Logo"
           className="brand-icon-svg"
           style={{"width":"42px","height":"42px","borderRadius":"50%","objectFit":"cover","border":"2px solid rgba(255,255,255,0.7)","boxShadow":"0 2px 8px rgba(0,0,0,0.3)","flexShrink":0}}
-          onError={(e) => { e.target.src = '/images/jansetu-logo.png'; }}
+          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/images/jansetu-logo.png'; }}
         />
         <div className="brand-text-block">
           <span className="brand-title"><span className="brand-saffron">Jan</span><span className="brand-green">Setu</span></span>

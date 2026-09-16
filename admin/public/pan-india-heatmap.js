@@ -900,7 +900,7 @@
                     <!-- Photo and Video Thumbnails -->
                     <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
                       <div style="position:relative;width:66px;height:48px;border-radius:6px;overflow:hidden;border:1px solid #CBD5E1;flex-shrink:0;cursor:pointer" onclick="window.openProblemEvidenceModal('${p._id}')">
-                        <img src="${getChallengeMedia(p).photos[0]?.url || '/images/water-tap.jpg'}" style="width:100%;height:100%;object-fit:cover" alt="Evidence" onerror="this.src='/images/water-tap.jpg'" />
+                        <img src="${getChallengeMedia(p).photos[0]?.url || '/images/water-tap.jpg'}" style="width:100%;height:100%;object-fit:cover" alt="Evidence" onerror="this.onerror=null;this.src='/images/water-tap.jpg'" />
                         <span style="position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,0.7);color:white;font-size:8px;font-weight:800;padding:1px 3px;border-radius:3px">📷 PHOTO</span>
                       </div>
                       <div style="position:relative;width:66px;height:48px;border-radius:6px;overflow:hidden;border:1px solid #CBD5E1;background:#0F172A;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer" onclick="window.openProblemEvidenceModal('${p._id}')">
@@ -1080,7 +1080,7 @@
                   <span style="color:#059669">✓ Geo-Stamped</span>
                 </div>
                 <div style="width:100%;height:180px;border-radius:10px;overflow:hidden;border:1px solid #CBD5E1;position:relative">
-                  <img id="pihModalMainImg" src="${media.photos[0]?.url || '/images/water-tap.jpg'}" style="width:100%;height:100%;object-fit:cover" alt="Ground Proof" onerror="this.src='/images/water-tap.jpg'" />
+                  <img id="pihModalMainImg" src="${media.photos[0]?.url || '/images/water-tap.jpg'}" style="width:100%;height:100%;object-fit:cover" alt="Ground Proof" onerror="this.onerror=null;this.src='/images/water-tap.jpg'" />
                   <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent, rgba(0,0,0,0.8));color:white;padding:6px 10px;font-size:11px;font-weight:600">
                     📍 Ground Capture · ${district}, ${state}
                   </div>
@@ -1088,7 +1088,7 @@
                 ${media.photos.length > 1 ? `
                   <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px">
                     ${media.photos.map((ph, idx) => `
-                      <img src="${ph.url}" alt="Thumb ${idx + 1}" style="width:48px;height:48px;border-radius:6px;object-fit:cover;border:1.5px solid #CBD5E1;cursor:pointer;flex-shrink:0" onclick="document.getElementById('pihModalMainImg').src='${ph.url}'" onerror="this.src='/images/water-tap.jpg'" />
+                      <img src="${ph.url}" alt="Thumb ${idx + 1}" style="width:48px;height:48px;border-radius:6px;object-fit:cover;border:1.5px solid #CBD5E1;cursor:pointer;flex-shrink:0" onclick="document.getElementById('pihModalMainImg').src='${ph.url}'" onerror="this.onerror=null;this.src='/images/water-tap.jpg'" />
                     `).join('')}
                   </div>
                 ` : ''}

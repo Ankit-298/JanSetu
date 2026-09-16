@@ -294,7 +294,8 @@ export default function ExploreChallenges({ onNavigateDashboard }) {
           className="explore-hero-bg"
           alt="Explore Challenges Banner"
           onError={(e) => {
-            e.target.src = '/citizen/images/india-gate-panoramic.jpg';
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = '/citizen/images/india-gate-panoramic.jpg';
           }}
         />
         <div className="explore-hero-content">
@@ -1006,6 +1007,7 @@ function SocialPostCard({ challenge, currentUser, onOpenTracker }) {
             className="post-carousel-image"
             alt={challenge.title}
             onError={e => {
+              e.currentTarget.onerror = null;
               e.currentTarget.src = DEFAULT_CIVIC_IMAGES[0];
             }}
           />

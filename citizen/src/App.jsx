@@ -115,7 +115,7 @@ function App() {
       <div className="sidebar-tricolor-ribbon"></div>
       <div className="sidebar-brand-wrapper">
         <a href="/" className="sidebar-brand">
-          <img src="/jansetu-logo.png" alt="JanSetu Logo" className="brand-icon-svg" style={{"width":"44px","height":"44px","borderRadius":"50%","objectFit":"cover","border":"1.5px solid rgba(255,255,255,0.7)","boxShadow":"0 2px 8px rgba(0,0,0,0.25)"}} onError={(e) => { e.target.src = '/citizen/jansetu-logo.png'; }} />
+          <img src="/jansetu-logo.png" alt="JanSetu Logo" className="brand-icon-svg" style={{"width":"44px","height":"44px","borderRadius":"50%","objectFit":"cover","border":"1.5px solid rgba(255,255,255,0.7)","boxShadow":"0 2px 8px rgba(0,0,0,0.25)"}} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/citizen/jansetu-logo.png'; }} />
           <div className="brand-text-block">
             <span className="brand-title"><span className="brand-saffron">Jan</span><span className="brand-green">Setu</span></span>
             <span className="brand-tagline" data-i18n="brand_tagline">Your Voice, Real Change.</span>
@@ -214,7 +214,7 @@ function App() {
 
       {/* Contribute Card: High-Contrast Heritage Card with Taj Mahal Background */}
       <div className="sidebar-contribute-card">
-        <img src="/citizen/images/taj-mahal-bg.jpg" className="taj-mahal-card-bg" alt="Taj Mahal" onError={(e) => { e.currentTarget.src='images/taj-mahal-bg.jpg' }} />
+        <img src="/citizen/images/taj-mahal-bg.jpg" className="taj-mahal-card-bg" alt="Taj Mahal" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src='images/taj-mahal-bg.jpg' }} />
         <div className="taj-mahal-card-scrim"></div>
         <div className="sidebar-card-content">
           <div className="sidebar-flag-badge"
@@ -271,7 +271,7 @@ function App() {
         {activePage !== 'explore' && (
           <div className="panorama-monument-layer">
             <img src="/citizen/images/header.png" className="panorama-monument-photo" alt="Indian Monuments & APJ Abdul Kalam Banner"
-              onError={(e) => { e.target.src = '/citizen/images/citizen-header-banner.png'; }} />
+              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/citizen/images/citizen-header-banner.png'; }} />
             <div className="panorama-monument-scrim"></div>
           </div>
         )}
@@ -286,7 +286,7 @@ function App() {
               </svg>
             </button>
             <div className="gov-badge-tag" style={{"display":"inline-flex","alignItems":"center","gap":"8px"}}>
-              <img src="/jansetu-logo.png" style={{"width":"22px","height":"22px","borderRadius":"50%","objectFit":"cover"}} alt="Logo" onError={(e) => { e.target.src = '/citizen/jansetu-logo.png'; }} />
+              <img src="/jansetu-logo.png" style={{"width":"22px","height":"22px","borderRadius":"50%","objectFit":"cover"}} alt="Logo" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/citizen/jansetu-logo.png'; }} />
               <span data-i18n="gov_tag">JanSetu · Government of Jharkhand</span>
             </div>
           </div>

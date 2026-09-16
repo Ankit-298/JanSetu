@@ -54,7 +54,7 @@ function Sidebar({ unreadCount = 0, isOpen = false, onClose = () => {} }) {
               src="/images/jansetu-logo.png"
               alt="JanSetu Logo"
               className="sidebar-brand-img"
-              onError={(e) => { e.target.src = '/images/jansetu-logo.png'; }}
+              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/images/jansetu-logo.png'; }}
             />
           </div>
           {/* Mobile close button inside drawer */}
